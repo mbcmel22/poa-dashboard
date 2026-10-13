@@ -18,7 +18,7 @@
 
 const CONFIG = {
   // URL CSV de l'onglet "POA" (saisie manuelle mensuelle)
-  SHEET_POA_CSV: null,
+  SHEET_POA_CSV: https://docs.google.com/spreadsheets/d/e/2PACX-1vR4m7HEuHmqlPy2hNxaKrCbwQaP8_d9vUsBXJtcZaPUZxSreC3c92HMdV-ojXd7M_NHR06DwOSd5cKa/pub?gid=591477432&single=true&output=csv,
 
   // URL CSV de l'onglet "Flux_auto" (lignes ajoutées par l'automatisation)
   // Laisse null tant que l'automatisation n'est pas en place.
