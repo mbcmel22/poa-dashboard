@@ -1,0 +1,43 @@
+/* ============================================================
+   CONFIG.JS : réglages du tableau de bord POA
+   ============================================================
+
+   1. Ouvre le Google Sheet "Tableau de bord KPI POA".
+   2. Fichier > Partager > Publier sur le web.
+   3. Onglet "Lien" : choisis l'onglet "POA", format
+      "Valeurs séparées par des virgules (.csv)", puis Publier.
+   4. Colle l'URL obtenue dans SHEET_POA_CSV ci-dessous,
+      entre apostrophes simples.
+   5. (Plus tard) fais de même avec l'onglet "Flux_auto" alimenté
+      par l'automatisation, et colle l'URL dans SHEET_FLUX_AUTO_CSV.
+   6. Enregistre, puis redéploie sur Vercel (ou git push).
+
+   Tant que les URLs sont à null, le site tourne en MODE DÉMO avec
+   les dernières valeurs connues du Sheet.
+   ============================================================ */
+
+const CONFIG = {
+  // URL CSV de l'onglet "POA" (saisie manuelle mensuelle)
+  SHEET_POA_CSV: null,
+
+  // URL CSV de l'onglet "Flux_auto" (lignes ajoutées par l'automatisation)
+  // Laisse null tant que l'automatisation n'est pas en place.
+  SHEET_FLUX_AUTO_CSV: null,
+
+  // Année des colonnes Janvier à Décembre de l'onglet POA
+  ANNEE: 2026,
+
+  // Prix de l'abonnement annuel (sert au calcul des gains Meta Ads)
+  PRIX_ABONNEMENT: 50,
+
+  // Rafraîchissement automatique de la page, en minutes (0 = désactivé)
+  AUTO_REFRESH_MINUTES: 0,
+
+  // Objectifs business affichés sur la vue d'ensemble
+  // sens : "max" = la valeur doit rester sous la cible, "min" = au-dessus
+  OBJECTIFS: [
+    { code: 'churn',   label: 'Churn mensuel', cible: 0.06, sens: 'max', format: 'pct' },
+    { code: 'nps',     label: 'NPS',           cible: 40,   sens: 'min', format: 'num' },
+    { code: 'ltv_cac', label: 'Ratio LTV / CAC', cible: 3,  sens: 'min', format: 'ratio' },
+  ],
+};

@@ -1,0 +1,97 @@
+# POA · Tableau de bord KPI marketing
+
+Dashboard web aux couleurs de POA, branché sur le Google Sheet **Tableau de bord KPI POA**. Site 100 % statique : HTML, CSS, JavaScript, Chart.js et PapaParse inclus en local. Aucun build, aucune installation.
+
+## Les 5 pages
+
+1. **Vue d'ensemble** : vues, interactions, taux d'engagement et nouveaux abonnés sur la période, vues par réseau, objectifs business (churn, NPS, LTV / CAC), tunnel vues → visites du profil → clics → téléchargements → abonnements, meilleure campagne Meta.
+2. **Réseaux sociaux** : une carte par réseau, vues, interactions, taux d'engagement et publications par mois, détail mois par réseau.
+3. **Landing page** : visites, pages par visite, durée de session, taux de rebond, tunnel jusqu'à l'abonnement.
+4. **Publicité** : campagnes Meta Ads (coût par visite, par clic, par abonné), diffusion mensuelle, Google Ads.
+5. **Sources & automatisation** : état de chaque indicateur, son code, sa dernière valeur et son origine (Manuel / Auto).
+
+Un sélecteur de période filtre tout le dashboard : les tuiles affichent le total de la période et le comparent à la période précédente de même durée (choisis un seul mois pour une vue mensuelle). Les blocs sans donnée affichent un état vide explicite au lieu d'un graphique faux.
+
+## Contenu du dossier
+
+```
+poa-dashboard/
+├── index.html            Structure des 5 pages
+├── styles.css            Charte POA (sauge, terracotta, crème), responsive
+├── app.js                Lecture du Sheet, fusion des flux, graphiques
+├── config.js             URLs Google Sheets et réglages (à remplir)
+├── assets/               favicon ; dépose ici logo.png pour afficher le logo officiel
+├── fonts/                Fraunces et Inter en local
+├── vendor/               Chart.js, plugin annotation, PapaParse
+├── automatisation/
+│   ├── GUIDE_AUTOMATISATION.md   Ce qui est automatisable, plateforme par plateforme
+│   ├── apps-script-meta.gs       Script prêt à coller pour Instagram, Facebook, Meta Ads
+│   └── modele_Flux_auto.csv      Exemple de l'onglet Flux_auto
+└── vercel.json           En-têtes de sécurité, site non indexé par Google
+```
+
+## 1. Déployer sur Vercel
+
+Le projet `gemo-dashboard` reste intact : on crée un **nouveau projet** pour POA.
+
+**Option A, glisser-déposer**
+1. Dézippe le dossier.
+2. Va sur [vercel.com/new](https://vercel.com/new), clique sur **folder** sous la barre de recherche et choisis le dossier `poa-dashboard`.
+3. Nom du projet : `poa-dashboard`. Framework : *Other*. Build et Output : vides. **Deploy**.
+
+**Option B, GitHub (conseillé pour les mises à jour)**
+```bash
+cd poa-dashboard
+git init && git add . && git commit -m "Dashboard KPI POA"
+git branch -M main
+git remote add origin https://github.com/BryanMEL22/poa-dashboard.git
+git push -u origin main
+```
+Puis sur Vercel : **Add New > Project > Import** du dépôt. Chaque `git push` redéploie le site.
+
+Sans configuration, le site tourne en **mode démo** avec les dernières valeurs connues du Sheet (janvier à septembre 2026, campagnes Meta de février et mars).
+
+## 2. Brancher le Google Sheet
+
+1. Ouvre **Tableau de bord KPI POA** > **Fichier > Partager > Publier sur le web**.
+2. Onglet **Lien** : choisis l'onglet **POA** (pas « Document entier »), format **Valeurs séparées par des virgules (.csv)**, puis **Publier**.
+3. Copie l'URL et colle-la dans `config.js`, entre apostrophes simples :
+   ```js
+   SHEET_POA_CSV: 'https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&single=true&output=csv',
+   ```
+4. Enregistre (Bloc-notes, pas Word), redéploie. En bas de la barre latérale, le point passe au vert : **Google Sheet connecté**.
+
+Ensuite : tu modifies le Sheet, tu cliques **Actualiser** sur le dashboard. Compte 1 à 5 minutes de cache côté Google.
+
+### Ce que le dashboard sait lire dans l'onglet POA
+- Les colonnes **Janvier à Décembre** (année réglée dans `config.js`, `ANNEE`). L'indicateur est la colonne juste avant « Janvier ».
+- Les sections en colonne A : **RÉSEAUX SOCIAUX**, **LP**, **CAMPAGNE META ADS**, **CAMPAGNE GOOGLE ADS**. Elles se prolongent vers le bas tant que la cellule est vide.
+- La **plateforme** (Instagram, Facebook, TikTok) en colonne B, prolongée elle aussi vers le bas.
+- Indicateurs réseaux reconnus : nombre d'abonnés, followers en plus, visites du compte / vues du profil, vues de publication, publications, interactions, clics sur un lien.
+- **Section Meta Ads** : chaque texte de publication en colonne B ouvre une **campagne**. Ses lignes suivantes (visites du profil, coût par visite, vues, spectateurs, interactions, clics, CTR, followers en plus, objectif, budget quotidien, durée, montant dépensé) sont lues dans la colonne du mois où tu les as saisies.
+- Le tableau qui commence par **Levier** est encore lu, mais ses « gains » ne sont pas repris (voir points d'attention).
+- Formats : `13,79 €`, `3 061`, `4,49%`, `7 jours`, `1:42` pour une durée.
+
+Tu peux ajouter une ligne `Churn`, `NPS` ou `LTV / CAC` dans l'onglet : elle sera reconnue aussi.
+
+## 3. Automatiser (plus tard)
+
+Voir `automatisation/GUIDE_AUTOMATISATION.md`. En résumé : un script ajoute chaque jour des lignes dans un onglet `Flux_auto` (`Date | Code | Valeur | Source`), tu publies cet onglet en CSV, tu colles l'URL dans `SHEET_FLUX_AUTO_CSV`. Le dashboard fusionne tout seul.
+
+## Réglages (`config.js`)
+
+| Réglage | Rôle |
+|---|---|
+| `SHEET_POA_CSV` | URL CSV de l'onglet POA |
+| `SHEET_FLUX_AUTO_CSV` | URL CSV de l'onglet Flux_auto (optionnel) |
+| `ANNEE` | Année des colonnes de mois |
+| `PRIX_ABONNEMENT` | 50 € : sert à estimer les gains des tests Meta |
+| `AUTO_REFRESH_MINUTES` | Rechargement automatique de la page (0 = off) |
+| `OBJECTIFS` | Cibles business : churn < 6 %, NPS ≥ 40, LTV / CAC ≥ 3 |
+
+## Points d'attention
+
+- **Gains Meta Ads** : dans le tableau « Levier », les conversions (13 et 19) correspondent aux followers gagnés par les campagnes, pas à des abonnements payants. Les gains de 650 € et 950 € (conversions × 50 €) ne sont donc pas repris : le dashboard affiche plutôt le coût par visite, par clic et par abonné gagné.
+- **Taux d'engagement** : calculé seulement pour les mois à 50 vues ou plus, pour éviter qu'un mois à 2 vues affiche 100 %.
+- **Confidentialité** : un onglet publié en CSV est lisible par toute personne qui a l'URL. Ne publie que les onglets POA et Flux_auto, pas le document entier. Le site est marqué non indexable.
+- **Logo** : dépose le logo officiel en `assets/logo.png` ; il s'affiche automatiquement dans la barre latérale.

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="Tableau de bord KPI marketing de POA" />
+  <title>POA · Tableau de bord KPI</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" aria-label="Navigation">
+    <div class="brand">
+      <img src="assets/logo.png" alt="POA" class="brand-logo" onerror="this.remove()" />
+      <div class="brand-text">
+        <span class="brand-name">poa</span>
+        <span class="brand-tag">Tes plats préférés, en mieux.</span>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a href="#vue" class="nav-item" data-page="vue">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>
+        <span>Vue d'ensemble</span>
+      </a>
+      <a href="#reseaux" class="nav-item" data-page="reseaux">
+        <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+        <span>Réseaux sociaux</span>
+      </a>
+      <a href="#landing" class="nav-item" data-page="landing">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/></svg>
+        <span>Landing page</span>
+      </a>
+      <a href="#pub" class="nav-item" data-page="pub">
+        <svg viewBox="0 0 24 24"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+        <span>Publicité</span>
+      </a>
+      <a href="#sources" class="nav-item" data-page="sources">
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+        <span>Sources &amp; automatisation</span>
+      </a>
+    </nav>
+
+    <div class="source-status" id="source-status">
+      <span class="dot"></span>
+      <span class="txt">Chargement…</span>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+
+    <header class="topbar">
+      <div class="topbar-title">
+        <h1 id="page-title">Vue d'ensemble</h1>
+        <p id="page-sub">L'essentiel de la performance marketing de POA</p>
+      </div>
+      <div class="topbar-actions">
+        <div class="period">
+          <label for="p-start">Période</label>
+          <select id="p-start" aria-label="Mois de début"></select>
+          <span class="arrow">à</span>
+          <select id="p-end" aria-label="Mois de fin"></select>
+        </div>
+        <button id="refresh" class="btn" type="button" title="Recharger les données du Google Sheet">
+          <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></svg>
+          <span>Actualiser</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ============ PAGE : VUE D'ENSEMBLE ============ -->
+      <section class="page" id="page-vue" data-title="Vue d'ensemble" data-sub="L'essentiel de la performance marketing de POA">
+        <div class="tiles" id="tiles-vue"></div>
+
+        <div class="grid g-3-2">
+          <div class="card">
+            <div class="card-head">
+              <h2>Vues des publications</h2>
+              <span class="card-hint">Par mois et par réseau</span>
+            </div>
+            <div class="chart" id="wrap-communaute"><canvas id="c-communaute"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h2>Objectifs business</h2>
+              <span class="card-hint">Dernière valeur connue</span>
+            </div>
+            <div id="objectifs"></div>
+          </div>
+        </div>
+
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-head">
+              <h2>Tunnel d'acquisition</h2>
+              <span class="card-hint">Des vues jusqu'à l'abonnement, cumul sur la période</span>
+            </div>
+            <div id="funnel"></div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h2>Meilleure campagne Meta</h2>
+              <span class="card-hint">Coût par abonné le plus bas</span>
+            </div>
+            <div id="best-test"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PAGE : RÉSEAUX ============ -->
+      <section class="page" id="page-reseaux" data-title="Réseaux sociaux" data-sub="Instagram, Facebook et TikTok sur la période choisie">
+        <div class="tiles tiles-3" id="tiles-reseaux"></div>
+
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-head"><h2>Vues des publications</h2><span class="card-hint">Par mois</span></div>
+            <div class="chart" id="wrap-abonnes"><canvas id="c-abonnes"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Interactions</h2><span class="card-hint">Par mois</span></div>
+            <div class="chart" id="wrap-interactions"><canvas id="c-interactions"></canvas></div>
+          </div>
+        </div>
+
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-head"><h2>Taux d'engagement</h2><span class="card-hint">Interactions ÷ vues</span></div>
+            <div class="chart" id="wrap-publications"><canvas id="c-publications"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Publications</h2><span class="card-hint">Stories et posts</span></div>
+            <div class="chart" id="wrap-pubs"><canvas id="c-pubs"></canvas></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Détail par mois et par réseau</h2></div>
+          <div class="table-wrap" id="t-efficacite"></div>
+        </div>
+      </section>
+
+      <!-- ============ PAGE : LANDING PAGE ============ -->
+      <section class="page" id="page-landing" data-title="Landing page" data-sub="Trafic du site et passage à l'application">
+        <div class="tiles" id="tiles-landing"></div>
+        <div class="grid g-3-2">
+          <div class="card">
+            <div class="card-head"><h2>Visites par mois</h2><span class="card-hint">Landing page</span></div>
+            <div class="chart" id="wrap-visites"><canvas id="c-visites"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>De la visite à l'abonnement</h2><span class="card-hint">Cumul sur la période</span></div>
+            <div id="funnel-lp"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Détail mensuel</h2></div>
+          <div class="table-wrap" id="t-landing"></div>
+        </div>
+      </section>
+
+      <!-- ============ PAGE : PUBLICITÉ ============ -->
+      <section class="page" id="page-pub" data-title="Publicité" data-sub="Campagnes Meta Ads (Instagram) et Google Ads">
+        <div class="tiles" id="tiles-pub"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Campagnes Meta Ads</h2>
+            <span class="card-hint" id="hint-tests"></span>
+          </div>
+          <div class="table-wrap" id="t-tests"></div>
+        </div>
+
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-head"><h2>Coûts unitaires</h2><span class="card-hint">Plus bas = mieux</span></div>
+            <div class="chart" id="wrap-cpa"><canvas id="c-cpa"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Résultats obtenus</h2><span class="card-hint">Par campagne</span></div>
+            <div class="chart" id="wrap-roas"><canvas id="c-roas"></canvas></div>
+          </div>
+        </div>
+
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-head"><h2>Diffusion mensuelle</h2><span class="card-hint">Vues Meta Ads et impressions Google Ads</span></div>
+            <div class="chart" id="wrap-impr"><canvas id="c-impr"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Google Ads</h2><span class="card-hint">Impressions, clics, conversion</span></div>
+            <div class="table-wrap" id="t-campagnes"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PAGE : SOURCES ============ -->
+      <section class="page" id="page-sources" data-title="Sources &amp; automatisation" data-sub="D'où vient chaque chiffre, et ce qui reste à brancher">
+        <div class="tiles" id="tiles-sources"></div>
+        <div class="card">
+          <div class="card-head">
+            <h2>État de chaque indicateur</h2>
+            <span class="card-hint">Le code sert à l'automatisation (onglet Flux_auto)</span>
+          </div>
+          <div class="table-wrap" id="t-sources"></div>
+        </div>
+        <div class="card callout">
+          <h2>Comment fonctionne la mise à jour automatique</h2>
+          <ol class="steps">
+            <li><strong>Saisie manuelle</strong> : l'onglet <code>POA</code> du Google Sheet reste la base. Chaque valeur saisie apparaît ici au prochain clic sur <em>Actualiser</em>.</li>
+            <li><strong>Automatisation</strong> : un script (Google Apps Script ou Make) ajoute chaque jour ou chaque semaine des lignes dans l'onglet <code>Flux_auto</code> : <code>Date | Code | Valeur | Source</code>.</li>
+            <li><strong>Fusion</strong> : le dashboard regroupe ces lignes par mois. Une valeur automatique remplace la valeur manuelle du même mois.</li>
+          </ol>
+          <p class="muted">Le guide complet est dans le dossier <code>automatisation/</code> du projet.</p>
+        </div>
+      </section>
+
+      <footer class="footer">
+        POA · Tableau de bord marketing · <span id="last-load">···</span>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/papaparse.min.js"></script>
+<script src="vendor/chart.umd.min.js"></script>
+<script src="vendor/chartjs-plugin-annotation.min.js"></script>
+<script src="config.js"></script>
+<script src="demo-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
