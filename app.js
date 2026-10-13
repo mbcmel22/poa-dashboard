@@ -13,6 +13,23 @@
      une nouvelle campagne ; ses lignes suivantes décrivent ses résultats
    ============================================================ */
 
+/* ---------- Garde-fou : config.js ou demo-data.js illisible ----------
+   Une faute de frappe dans config.js (apostrophes oubliées autour de
+   l'URL) empêche le fichier de se charger. Plutôt qu'un chargement
+   infini, on repart sur des réglages par défaut et on le signale. */
+const CONFIG_BROKEN = typeof CONFIG === 'undefined';
+if (CONFIG_BROKEN) {
+  window.CONFIG = {
+    SHEET_POA_CSV: null, SHEET_FLUX_AUTO_CSV: null, ANNEE: 2026, PRIX_ABONNEMENT: 50, AUTO_REFRESH_MINUTES: 0,
+    OBJECTIFS: [
+      { code: 'churn', label: 'Churn mensuel', cible: 0.06, sens: 'max', format: 'pct' },
+      { code: 'nps', label: 'NPS', cible: 40, sens: 'min', format: 'num' },
+      { code: 'ltv_cac', label: 'Ratio LTV / CAC', cible: 3, sens: 'min', format: 'ratio' },
+    ],
+  };
+}
+if (typeof DEMO_POA_CSV === 'undefined') window.DEMO_POA_CSV = '';
+
 /* ---------- Réseaux ---------- */
 const NETS = [
   { key: 'ig', label: 'Instagram', color: '#BF5223', re: /instagram/ },
@@ -150,7 +167,11 @@ const ratio = (a, b) => (a !== null && b) ? a / b : null;
    ============================================================ */
 async function fetchCsv(url) {
   const sep = url.includes('?') ? '&' : '?';
-  const res = await fetch(`${url}${sep}_=${Date.now()}`, { cache: 'no-store' });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  let res;
+  try { res = await fetch(`${url}${sep}_=${Date.now()}`, { cache: 'no-store', signal: ctrl.signal }); }
+  finally { clearTimeout(timer); }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const text = await res.text();
   if (/<html/i.test(text.slice(0, 200))) throw new Error("L'URL ne renvoie pas un CSV (onglet publié ?)");
@@ -775,8 +796,9 @@ function renderAll() { renderVue(); renderReseaux(); renderLanding(); renderPub(
 function setStatus() {
   const el = $('source-status');
   const flux = CONFIG.SHEET_FLUX_AUTO_CSV ? (STATE.fluxError ? 'flux auto en erreur' : 'flux auto actif') : 'flux auto non branché';
-  const txt = { live: `Google Sheet connecté · ${flux}`, demo: "Mode démo · colle l'URL du Sheet dans config.js", error: 'Sheet injoignable · données de démo affichées' }[STATE.mode];
-  el.className = `source-status ${STATE.mode}`;
+  let txt = { live: `Google Sheet connecté · ${flux}`, demo: "Mode démo · colle l'URL du Sheet dans config.js", error: 'Sheet injoignable · données de démo affichées' }[STATE.mode];
+  if (CONFIG_BROKEN) txt = "config.js contient une erreur (apostrophes autour de l'URL ?) · données de démo";
+  el.className = `source-status ${CONFIG_BROKEN ? 'error' : STATE.mode}`;
   el.querySelector('.txt').textContent = txt;
 }
 

@@ -14,20 +14,22 @@ Un sélecteur de période filtre tout le dashboard : les tuiles affichent le tot
 
 ## Contenu du dossier
 
+Tous les fichiers sont à la racine (plus simple pour l'envoi sur GitHub par le navigateur) :
+
 ```
-poa-dashboard/
-├── index.html            Structure des 5 pages
-├── styles.css            Charte POA (sauge, terracotta, crème), responsive
-├── app.js                Lecture du Sheet, fusion des flux, graphiques
-├── config.js             URLs Google Sheets et réglages (à remplir)
-├── assets/               favicon ; dépose ici logo.png pour afficher le logo officiel
-├── fonts/                Fraunces et Inter en local
-├── vendor/               Chart.js, plugin annotation, PapaParse
-├── automatisation/
-│   ├── GUIDE_AUTOMATISATION.md   Ce qui est automatisable, plateforme par plateforme
-│   ├── apps-script-meta.gs       Script prêt à coller pour Instagram, Facebook, Meta Ads
-│   └── modele_Flux_auto.csv      Exemple de l'onglet Flux_auto
-└── vercel.json           En-têtes de sécurité, site non indexé par Google
+index.html, styles.css, app.js     le dashboard
+config.js                          URLs Google Sheets et réglages (à remplir)
+demo-data.js                       copie de l'onglet POA pour le mode démo
+*.min.js                           Chart.js, plugin annotation, PapaParse
+gravitas-one.woff2                 police des titres (charte POA)
+nobel-uno-*.woff2                  police du texte (charte POA)
+logo.png                           logo POA + baseline (barre latérale)
+favicon.ico, favicon-32.png        icône d'onglet (mascotte sur rond vert)
+apple-touch-icon.png               icône sur l'écran d'accueil du téléphone
+GUIDE_AUTOMATISATION.md            ce qui est automatisable, plateforme par plateforme
+apps-script-meta.gs                script prêt à coller (Instagram, Facebook, Meta Ads)
+modele_Flux_auto.csv               exemple de l'onglet Flux_auto
+vercel.json                        en-têtes de sécurité, site non indexé
 ```
 
 ## 1. Déployer sur Vercel
@@ -44,7 +46,7 @@ Le projet `gemo-dashboard` reste intact : on crée un **nouveau projet** pour PO
 cd poa-dashboard
 git init && git add . && git commit -m "Dashboard KPI POA"
 git branch -M main
-git remote add origin https://github.com/BryanMEL22/poa-dashboard.git
+git remote add origin https://github.com/mbcmel22/poa-dashboard.git
 git push -u origin main
 ```
 Puis sur Vercel : **Add New > Project > Import** du dépôt. Chaque `git push` redéploie le site.
@@ -76,7 +78,7 @@ Tu peux ajouter une ligne `Churn`, `NPS` ou `LTV / CAC` dans l'onglet : elle ser
 
 ## 3. Automatiser (plus tard)
 
-Voir `automatisation/GUIDE_AUTOMATISATION.md`. En résumé : un script ajoute chaque jour des lignes dans un onglet `Flux_auto` (`Date | Code | Valeur | Source`), tu publies cet onglet en CSV, tu colles l'URL dans `SHEET_FLUX_AUTO_CSV`. Le dashboard fusionne tout seul.
+Voir `GUIDE_AUTOMATISATION.md`. En résumé : un script ajoute chaque jour des lignes dans un onglet `Flux_auto` (`Date | Code | Valeur | Source`), tu publies cet onglet en CSV, tu colles l'URL dans `SHEET_FLUX_AUTO_CSV`. Le dashboard fusionne tout seul.
 
 ## Réglages (`config.js`)
 
@@ -94,4 +96,5 @@ Voir `automatisation/GUIDE_AUTOMATISATION.md`. En résumé : un script ajoute ch
 - **Gains Meta Ads** : dans le tableau « Levier », les conversions (13 et 19) correspondent aux followers gagnés par les campagnes, pas à des abonnements payants. Les gains de 650 € et 950 € (conversions × 50 €) ne sont donc pas repris : le dashboard affiche plutôt le coût par visite, par clic et par abonné gagné.
 - **Taux d'engagement** : calculé seulement pour les mois à 50 vues ou plus, pour éviter qu'un mois à 2 vues affiche 100 %.
 - **Confidentialité** : un onglet publié en CSV est lisible par toute personne qui a l'URL. Ne publie que les onglets POA et Flux_auto, pas le document entier. Le site est marqué non indexable.
-- **Logo** : dépose le logo officiel en `assets/logo.png` ; il s'affiche automatiquement dans la barre latérale.
+- **config.js** : l'URL doit être entre apostrophes simples. Sans elles, le fichier est illisible : le dashboard l'indique en bas de la barre latérale et affiche les données de démo.
+- **Charte** : couleurs et polices tirées de la charte POA 2026 (Vert #93A170, Rouge #BF5223, Bleu #8FB0C7, Orange #F79E2B, Crème #FFFAF2 ; Gravitas One pour les titres, Nobel Uno pour le texte). Pour changer de logo, remplace `logo.png` (fond transparent, texte clair).
