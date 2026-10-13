@@ -5,12 +5,12 @@ Dashboard web aux couleurs de POA, branché sur le Google Sheet **Tableau de bor
 ## Les 5 pages
 
 1. **Vue d'ensemble** : vues, interactions, taux d'engagement et nouveaux abonnés sur la période, vues par réseau, objectifs business (churn, NPS, LTV / CAC), tunnel vues → visites du profil → clics → téléchargements → abonnements, meilleure campagne Meta.
-2. **Réseaux sociaux** : une carte par réseau, vues, interactions, taux d'engagement et publications par mois, détail mois par réseau.
+2. **Réseaux sociaux** : un onglet par réseau (Instagram, Facebook, TikTok). Pour le réseau choisi : 8 indicateurs, vues, interactions, taux d'engagement et audience par mois, puis le détail mois par mois.
 3. **Landing page** : visites, pages par visite, durée de session, taux de rebond, tunnel jusqu'à l'abonnement.
 4. **Publicité** : campagnes Meta Ads (coût par visite, par clic, par abonné), diffusion mensuelle, Google Ads.
 5. **Sources & automatisation** : état de chaque indicateur, son code, sa dernière valeur et son origine (Manuel / Auto).
 
-Un sélecteur de période filtre tout le dashboard : les tuiles affichent le total de la période et le comparent à la période précédente de même durée (choisis un seul mois pour une vue mensuelle). Les blocs sans donnée affichent un état vide explicite au lieu d'un graphique faux.
+Le filtre **Période** (en haut) filtre tout le dashboard. Depuis « Tout », un clic sur un mois affiche ce mois seul ; chaque clic suivant ajoute ou retire un mois ; Maj + clic sélectionne une plage. Les tuiles affichent le total des mois choisis et, quand ces mois se suivent, le comparent à la période précédente de même durée. Les blocs sans donnée affichent un état vide explicite au lieu d'un graphique faux.
 
 ## Contenu du dossier
 

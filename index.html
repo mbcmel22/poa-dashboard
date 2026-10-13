@@ -62,16 +62,15 @@
         <p id="page-sub">L'essentiel de la performance marketing de POA</p>
       </div>
       <div class="topbar-actions">
-        <div class="period">
-          <label for="p-start">Période</label>
-          <select id="p-start" aria-label="Mois de début"></select>
-          <span class="arrow">à</span>
-          <select id="p-end" aria-label="Mois de fin"></select>
-        </div>
         <button id="refresh" class="btn" type="button" title="Recharger les données du Google Sheet">
           <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></svg>
           <span>Actualiser</span>
         </button>
+      </div>
+      <div class="period" role="group" aria-label="Période">
+        <span class="period-label">Période</span>
+        <div class="chips" id="period-chips"></div>
+        <span class="period-hint" id="period-hint"></span>
       </div>
     </header>
 
@@ -117,12 +116,14 @@
       </section>
 
       <!-- ============ PAGE : RÉSEAUX ============ -->
-      <section class="page" id="page-reseaux" data-title="Réseaux sociaux" data-sub="Instagram, Facebook et TikTok sur la période choisie">
-        <div class="tiles tiles-3" id="tiles-reseaux"></div>
+      <section class="page" id="page-reseaux" data-title="Réseaux sociaux" data-sub="Un réseau à la fois, sur la période choisie">
+        <div class="net-tabs" id="net-tabs" role="tablist" aria-label="Réseau"></div>
+
+        <div class="tiles" id="tiles-reseaux"></div>
 
         <div class="grid g-2">
           <div class="card">
-            <div class="card-head"><h2>Vues des publications</h2><span class="card-hint">Par mois</span></div>
+            <div class="card-head"><h2>Vues des publications</h2><span class="card-hint" id="hint-net-1">Par mois</span></div>
             <div class="chart" id="wrap-abonnes"><canvas id="c-abonnes"></canvas></div>
           </div>
           <div class="card">
@@ -137,13 +138,13 @@
             <div class="chart" id="wrap-publications"><canvas id="c-publications"></canvas></div>
           </div>
           <div class="card">
-            <div class="card-head"><h2>Publications</h2><span class="card-hint">Stories et posts</span></div>
+            <div class="card-head"><h2>Audience</h2><span class="card-hint">Visites du profil, clics sur le lien, nouveaux abonnés</span></div>
             <div class="chart" id="wrap-pubs"><canvas id="c-pubs"></canvas></div>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-head"><h2>Détail par mois et par réseau</h2></div>
+          <div class="card-head"><h2 id="t-net-title">Détail par mois</h2></div>
           <div class="table-wrap" id="t-efficacite"></div>
         </div>
       </section>

@@ -88,7 +88,7 @@ const MONTHS_SHORT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.',
 const STATE = {
   values: {}, autoLast: {}, autoRows: 0, unknownCodes: new Set(),
   campaigns: [], tests: [], warnings: [],
-  months: [], start: null, end: null, mode: 'demo', charts: {},
+  months: [], sel: [], net: 'ig', mode: 'demo', charts: {},
 };
 
 /* ============================================================
@@ -400,9 +400,15 @@ function computeMonths() {
 /* ============================================================
    ACCÈS AUX VALEURS
    ============================================================ */
-const periodMonths = () => STATE.months.filter(k => k >= STATE.start && k <= STATE.end);
+const periodMonths = () => STATE.months.filter(k => STATE.sel.includes(k));
+/* Mois choisis consécutifs ? (sinon pas de comparaison possible) */
+function isContiguous(months = periodMonths()) {
+  const idx = months.map(k => STATE.months.indexOf(k));
+  return idx.every((v, i) => i === 0 || v === idx[i - 1] + 1);
+}
 function prevMonths() {
   const cur = periodMonths();
+  if (!cur.length || !isContiguous(cur)) return [];
   const i = STATE.months.indexOf(cur[0]);
   return i - cur.length >= 0 ? STATE.months.slice(i - cur.length, i) : [];
 }
@@ -422,7 +428,11 @@ function agg(code, months = periodMonths()) {
 const aggNets = (field, months) => sum(NETS.map(n => agg(`${n.key}_${field}`, months)));
 const MIN_VUES_ENGAGEMENT = 50; // en dessous, le taux mensuel n'est pas significatif
 const engMonth = (net, k) => { const v = val(`${net}_vues`, k); return v !== null && v >= MIN_VUES_ENGAGEMENT ? ratio(val(`${net}_interactions`, k), v) : null; };
-const engagement = (net, months) => net ? ratio(agg(`${net}_interactions`, months), agg(`${net}_vues`, months)) : ratio(aggNets('interactions', months), aggNets('vues', months));
+const engagement = (net, months) => {
+  const v = net ? agg(`${net}_vues`, months) : aggNets('vues', months);
+  if (v === null || v < MIN_VUES_ENGAGEMENT) return null;
+  return ratio(net ? agg(`${net}_interactions`, months) : aggNets('interactions', months), v);
+};
 
 function lastPoint(code, months = periodMonths()) {
   for (let i = months.length - 1; i >= 0; i--) {
@@ -434,7 +444,10 @@ function lastPoint(code, months = periodMonths()) {
 
 function periodLabel(months = periodMonths()) {
   if (!months.length) return '';
-  return months.length === 1 ? ymLabel(months[0]) : `${ymShort(months[0])} à ${ymLabel(months[months.length - 1])}`;
+  if (months.length === 1) return ymLabel(months[0]);
+  if (isContiguous(months)) return `${ymShort(months[0])} à ${ymLabel(months[months.length - 1])}`;
+  if (months.length > 4) return `${months.length} mois choisis`;
+  return `${months.slice(0, -1).map(ymShort).join(', ')} et ${ymLabel(months[months.length - 1])}`;
 }
 
 /* ============================================================
@@ -445,7 +458,7 @@ function deltaHtml(cur, prev, f, better = 'up') {
   let txt, diff;
   if (f === 'pct') { diff = (cur - prev) * 100; txt = `${diff >= 0 ? '+' : ''}${fr(diff, 1)} pt`; }
   else if (prev === 0) { if (cur === 0) return ''; diff = cur; txt = `+${fr(cur)}`; }
-  else { diff = (cur - prev) / Math.abs(prev) * 100; txt = `${diff >= 0 ? '+' : ''}${fr(diff, 0)} %`; }
+  else { diff = (cur - prev) / Math.abs(prev) * 100; txt = diff > 999 ? '> +999 %' : `${diff >= 0 ? '+' : ''}${fr(diff, 0)} %`; }
   const cls = Math.abs(diff) < 0.05 ? 'flat' : ((diff > 0) === (better === 'up') ? 'up' : 'down');
   const arrow = cls === 'flat' ? '' : (diff > 0 ? '↑ ' : '↓ ');
   return `<span class="delta ${cls}">${arrow}${txt}</span>`;
@@ -599,51 +612,55 @@ function funnelHtml(steps, emptyTitle, emptyHint) {
    ============================================================ */
 function renderReseaux() {
   const months = periodMonths(), pm = prevMonths();
-  $('tiles-reseaux').innerHTML = NETS.map(n => {
-    const a = k => agg(`${n.key}_${k}`, months);
-    const ab = lastPoint(`${n.key}_abonnes`, STATE.months.filter(k => k <= STATE.end));
-    const rows = [
-      ['Interactions', fmt(a('interactions'))],
-      ['Engagement', fmt(engagement(n.key, months), 'pct')],
-      ['Publications', fmt(a('publications'))],
-      ['Visites profil', fmt(a('visites_profil'))],
-      ['Clics lien', fmt(a('clics_lien'))],
-      ['Abonnés gagnés', fmt(a('nouveaux'))],
-    ].map(([k, v]) => `<div>${k}<strong class="${v === 'n/a' ? 'na' : ''}">${v === 'n/a' ? '·' : v}</strong></div>`).join('');
-    const abNote = ab ? `<div class="net-total">${fmt(ab.v)} abonnés au total <span>(${ymLabel(ab.key)})</span></div>` : '';
-    return tile({ label: `${n.label} · vues`, value: a('vues'), prev: pm.length ? agg(`${n.key}_vues`, pm) : null, accent: n.color,
-      extra: `<div class="net-rows">${rows}</div>${abNote}` });
-  }).join('');
+  const n = NETS.find(x => x.key === STATE.net) || NETS[0];
+  const code = f => `${n.key}_${f}`;
+
+  // Onglets : un réseau à la fois
+  $('net-tabs').innerHTML = NETS.map(x => `<button type="button" role="tab" class="net-tab ${x.key === n.key ? 'active' : ''}"
+      aria-selected="${x.key === n.key}" data-net="${x.key}" style="--accent:${x.color}"><span class="sw-inline" style="background:${x.color}"></span>${x.label}</button>`).join('');
+
+  const t = (f, label, opts = {}) => tile({ label, value: agg(code(f), months), prev: pm.length ? agg(code(f), pm) : null, accent: n.color, ...opts });
+  const lastSel = months[months.length - 1];
+  const ab = lastPoint(code('abonnes'), STATE.months.filter(k => k <= lastSel));
+  $('tiles-reseaux').innerHTML = [
+    t('vues', 'Vues des publications'),
+    t('interactions', 'Interactions'),
+    tile({ label: "Taux d'engagement", value: engagement(n.key, months), prev: pm.length ? engagement(n.key, pm) : null, f: 'pct', accent: n.color }),
+    t('publications', 'Publications'),
+    t('visites_profil', 'Visites du profil'),
+    t('clics_lien', 'Clics sur le lien'),
+    t('nouveaux', 'Nouveaux abonnés'),
+    tile({ label: 'Abonnés au total', value: ab ? ab.v : null, accent: n.color, note: ab ? `dernière saisie : ${ymLabel(ab.key)}` : '' }),
+  ].join('');
 
   const labels = months.map(ymShort);
-  drawChart('abonnes', { type: 'bar', data: { labels, datasets: NETS.map(n => barDs(n.label, series(`${n.key}_vues`), n.color)) }, options: commonOpts(v => fr(v)) },
-    hasAny(netCodes('vues')), 'Aucune vue renseignée', 'Onglet POA, section Réseaux sociaux');
-  drawChart('interactions', { type: 'bar', data: { labels, datasets: NETS.map(n => barDs(n.label, series(`${n.key}_interactions`), n.color)) }, options: commonOpts(v => fr(v)) },
-    hasAny(netCodes('interactions')), 'Aucune interaction renseignée', 'Onglet POA, section Réseaux sociaux');
+  const src = `Onglet POA, section Réseaux sociaux, ${n.label}`;
+  drawChart('abonnes', { type: 'bar', data: { labels, datasets: [barDs('Vues', series(code('vues')), n.color)] }, options: commonOpts(v => fr(v), false, false) },
+    hasAny([code('vues')]), `Aucune vue ${n.label} renseignée`, src);
+  drawChart('interactions', { type: 'bar', data: { labels, datasets: [barDs('Interactions', series(code('interactions')), n.color)] }, options: commonOpts(v => fr(v), false, false) },
+    hasAny([code('interactions')]), `Aucune interaction ${n.label} renseignée`, src);
 
-  const engSeries = n => months.map(k => engMonth(n.key, k));
-  const hasEng = NETS.some(n => engSeries(n).some(v => v !== null));
-  drawChart('publications', { type: 'line', data: { labels, datasets: NETS.map(n => lineDs(n.label, engSeries(n), n.color)) },
-    options: commonOpts(v => `${fr(v * 100)} %`, false, true, { label: i => `${i.dataset.label} : ${i.raw === null ? 'n/a' : fmt(i.raw, 'pct')}` }) },
-    hasEng, "Pas encore de taux d'engagement", `Calculé pour les mois à ${MIN_VUES_ENGAGEMENT} vues ou plus`);
+  const eng = months.map(k => engMonth(n.key, k));
+  drawChart('publications', { type: 'line', data: { labels, datasets: [lineDs('Taux d\'engagement', eng, n.color)] },
+    options: commonOpts(v => `${fr(v * 100, Math.round(v * 1000) % 10 ? 1 : 0)} %`, false, false, { label: i => `Taux d'engagement : ${i.raw === null ? 'n/a' : fmt(i.raw, 'pct')}` }) },
+    eng.some(v => v !== null), "Pas encore de taux d'engagement", `Calculé pour les mois à ${MIN_VUES_ENGAGEMENT} vues ou plus`);
 
-  drawChart('pubs', { type: 'bar', data: { labels, datasets: NETS.map(n => barDs(n.label, series(`${n.key}_publications`), n.color, { stack: 'p' })) }, options: commonOpts(v => fr(v), true) },
-    hasAny(netCodes('publications')), 'Aucune publication renseignée', 'Onglet POA, section Réseaux sociaux');
+  const aud = [['visites_profil', 'Visites du profil', C.sageDk], ['clics_lien', 'Clics sur le lien', C.gads], ['nouveaux', 'Nouveaux abonnés', n.color]];
+  drawChart('pubs', { type: 'bar', data: { labels, datasets: aud.map(([f, l, c]) => barDs(l, series(code(f)), c)) }, options: commonOpts(v => fr(v)) },
+    hasAny(aud.map(([f]) => code(f))), `Aucune donnée d'audience ${n.label}`, src);
 
-  // Détail : une ligne par mois et par réseau
-  const rows = [];
-  months.slice().reverse().forEach(k => NETS.forEach(n => {
-    const v = f => val(`${n.key}_${f}`, k);
-    if (NET_FIELDS.every(f => !v(f.key))) return;
-    rows.push(`<tr><td>${ymLabel(k)}</td><td><span class="sw-inline" style="background:${n.color}"></span>${n.label}</td>
-      ${['publications', 'vues', 'interactions'].map(f => cell(v(f))).join('')}
-      <td class="num">${fmt(engMonth(n.key, k), 'pct').replace('n/a', '·')}</td>
-      ${['visites_profil', 'clics_lien', 'nouveaux'].map(f => cell(v(f))).join('')}</tr>`);
-  }));
-  $('t-efficacite').innerHTML = rows.length ? `<table><thead><tr><th>Mois</th><th>Réseau</th><th class="num">Publications</th><th class="num">Vues</th>
-    <th class="num">Interactions</th><th class="num">Engagement</th><th class="num">Visites profil</th><th class="num">Clics lien</th><th class="num">Nouveaux abonnés</th></tr></thead>
-    <tbody>${rows.join('')}</tbody></table><p class="note">Taux d'engagement = interactions ÷ vues du mois, affiché à partir de ${MIN_VUES_ENGAGEMENT} vues. Les mois sans aucune activité sont masqués.</p>`
-    : emptyState('Aucune donnée sur la période', 'Les lignes apparaîtront dès la première saisie');
+  // Détail : une ligne par mois, pour ce réseau seulement
+  $('t-net-title').textContent = `Détail par mois · ${n.label}`;
+  const fields = ['publications', 'vues', 'interactions', 'eng', 'visites_profil', 'clics_lien', 'nouveaux', 'abonnes'];
+  const heads = { publications: 'Publications', vues: 'Vues', interactions: 'Interactions', eng: 'Engagement', visites_profil: 'Visites profil', clics_lien: 'Clics lien', nouveaux: 'Nouveaux abonnés', abonnes: 'Abonnés au total' };
+  const rows = months.slice().reverse().filter(k => NET_FIELDS.some(f => val(code(f.key), k))).map(k =>
+    `<tr><td>${ymLabel(k)}</td>${fields.map(f => f === 'eng'
+      ? `<td class="num ${engMonth(n.key, k) === null ? 'na' : ''}">${engMonth(n.key, k) === null ? '·' : fmt(engMonth(n.key, k), 'pct')}</td>`
+      : cell(val(code(f), k))).join('')}</tr>`);
+  $('t-efficacite').innerHTML = rows.length
+    ? `<table><thead><tr><th>Mois</th>${fields.map(f => `<th class="num">${heads[f]}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>
+       <p class="note">Taux d'engagement = interactions ÷ vues du mois, affiché à partir de ${MIN_VUES_ENGAGEMENT} vues. Les mois sans aucune activité sont masqués.</p>`
+    : emptyState(`Aucune donnée ${n.label} sur la période`, 'Les lignes apparaîtront dès la première saisie');
 }
 const cell = (v, f = 'int') => `<td class="num ${v === null ? 'na' : ''}">${v === null ? '·' : fmt(v, f)}</td>`;
 
@@ -783,12 +800,40 @@ function showPage(id) {
 }
 
 function initPeriod() {
-  const s = $('p-start'), e = $('p-end');
-  const opts = STATE.months.map(k => `<option value="${k}">${ymLabel(k)}</option>`).join('');
-  s.innerHTML = opts; e.innerHTML = opts;
-  if (!STATE.start || !STATE.months.includes(STATE.start)) STATE.start = STATE.months[0];
-  if (!STATE.end || !STATE.months.includes(STATE.end)) STATE.end = STATE.months[STATE.months.length - 1];
-  s.value = STATE.start; e.value = STATE.end;
+  STATE.sel = STATE.sel.filter(k => STATE.months.includes(k));
+  if (!STATE.sel.length) STATE.sel = STATE.months.slice();
+  renderChips();
+}
+
+/* Filtre de période : puces de mois.
+   - depuis « Tout », un clic garde seulement ce mois
+   - ensuite, chaque clic ajoute ou retire un mois
+   - Maj + clic sélectionne une plage */
+function renderChips() {
+  const all = STATE.sel.length === STATE.months.length;
+  const multiYear = new Set(STATE.months.map(k => k.slice(0, 4))).size > 1;
+  $('period-chips').innerHTML = `<button type="button" class="chip chip-all ${all ? 'on' : ''}" data-k="all" aria-pressed="${all}">Tout</button>` +
+    STATE.months.map(k => {
+      const on = !all && STATE.sel.includes(k);
+      return `<button type="button" class="chip ${on ? 'on' : ''}" data-k="${k}" aria-pressed="${on}" title="${ymLabel(k)}">${multiYear ? ymLabel(k) : ymShort(k)}</button>`;
+    }).join('');
+  const n = STATE.sel.length;
+  $('period-hint').textContent = all ? `${n} mois · clique un mois pour le voir seul` : `${periodLabel()}${n > 1 ? '' : ' · clique d’autres mois pour les ajouter'}`;
+}
+
+function onChip(e) {
+  const b = e.target.closest('.chip'); if (!b) return;
+  const k = b.dataset.k;
+  const all = STATE.sel.length === STATE.months.length;
+  if (k === 'all') STATE.sel = STATE.months.slice();
+  else if (e.shiftKey && STATE.anchor) {
+    const [i, j] = [STATE.months.indexOf(STATE.anchor), STATE.months.indexOf(k)].sort((a, b) => a - b);
+    STATE.sel = STATE.months.slice(i, j + 1);
+  } else if (all) STATE.sel = [k];
+  else if (STATE.sel.includes(k)) { STATE.sel = STATE.sel.filter(x => x !== k); if (!STATE.sel.length) STATE.sel = STATE.months.slice(); }
+  else STATE.sel = [...STATE.sel, k];
+  if (k !== 'all') STATE.anchor = k;
+  renderChips(); renderAll();
 }
 
 function renderAll() { renderVue(); renderReseaux(); renderLanding(); renderPub(); renderSources(); }
@@ -820,8 +865,14 @@ async function refresh(manual = false) {
 
 async function init() {
   setupChartDefaults();
-  $('p-start').addEventListener('change', e => { STATE.start = e.target.value; if (STATE.start > STATE.end) { STATE.end = STATE.start; $('p-end').value = STATE.end; } renderAll(); });
-  $('p-end').addEventListener('change', e => { STATE.end = e.target.value; if (STATE.end < STATE.start) { STATE.start = STATE.end; $('p-start').value = STATE.start; } renderAll(); });
+  $('period-chips').addEventListener('click', onChip);
+  try { const saved = localStorage.getItem('poa-net'); if (NETS.some(n => n.key === saved)) STATE.net = saved; } catch (e) { /* stockage indisponible */ }
+  $('net-tabs').addEventListener('click', e => {
+    const b = e.target.closest('.net-tab'); if (!b) return;
+    STATE.net = b.dataset.net;
+    try { localStorage.setItem('poa-net', STATE.net); } catch (err) { /* stockage indisponible */ }
+    renderReseaux();
+  });
   $('refresh').addEventListener('click', () => refresh(true));
   window.addEventListener('hashchange', () => showPage(location.hash.slice(1)));
   showPage(location.hash.slice(1));
