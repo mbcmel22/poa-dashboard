@@ -22,7 +22,7 @@ const CONFIG = {
 
   // URL CSV de l'onglet "Flux_auto" (lignes ajoutées par l'automatisation)
   // Laisse null tant que l'automatisation n'est pas en place.
-  SHEET_FLUX_AUTO_CSV: null,
+  SHEET_FLUX_AUTO_CSV: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR4m7HEuHmqlPy2hNxaKrCbwQaP8_d9vUsBXJtcZaPUZxSreC3c92HMdV-ojXd7M_NHR06DwOSd5cKa/pub?gid=276008607&single=true&output=csv',
 
   // Année des colonnes Janvier à Décembre de l'onglet POA
   ANNEE: 2026,
