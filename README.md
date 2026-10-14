@@ -36,6 +36,7 @@ favicon.ico, favicon-32.png        icône d'onglet (mascotte sur rond vert)
 apple-touch-icon.png               icône sur l'écran d'accueil du téléphone
 GUIDE_AUTOMATISATION.md            mise en route pas à pas de l'extraction automatique
 poa-automatisation.gs              script Apps Script : Instagram, Facebook, Meta Ads, TikTok
+tiktok-callback.html               page de retour de l'autorisation TikTok (URL de redirection)
 modele_Flux_auto.csv               exemple de l'onglet Flux_auto
 vercel.json                        en-têtes de sécurité, site non indexé
 ```

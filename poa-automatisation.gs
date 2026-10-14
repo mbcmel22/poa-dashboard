@@ -40,6 +40,7 @@ const AUTO = {
   FUSEAU: 'Europe/Paris',
   GRAPH: 'v25.0',                          // version de l'API Meta (v25 : février 2026)
   TIKTOK_API: 'https://business-api.tiktok.com/open_api/v1.3',
+  TIKTOK_REDIRECT: 'https://poa-dashboard.vercel.app/tiktok-callback', // page de retour déclarée dans l'app TikTok
   FEUILLE: 'Flux_auto',
   JOURNAL: 'Journal_auto',
   STORIES: '_stories',                      // onglet technique : stories vues passer
@@ -177,18 +178,20 @@ function rattraperHistorique() {
     const p = props_();
     const debut = AUTO.HISTORIQUE_DEPUIS, fin = jour_(-1);
     const t0 = Date.now();
-    let lignes = [];
+    let lignes = [], nIg = 0;
     const etapes = [];
 
     if (p.META_TOKEN && p.IG_USER_ID) {
       // Instagram : une requête par jour, envoyées par paquets en parallèle
-      const curseur = PropertiesService.getScriptProperties().getProperty('HISTO_IG_CURSEUR') || debut;
+      const sp = PropertiesService.getScriptProperties();
+      const curseur = sp.getProperty('HISTO_IG_CURSEUR') || debut;
       const jours = jours_(curseur, fin);
       let fait = 0;
-      for (let i = 0; i < jours.length; i += 20) {
+      for (let i = 0; i < jours.length; i += 8) {
         if (Date.now() - t0 > 4 * 60 * 1000) break; // garde une marge sous la limite de 6 min
-        lignes = lignes.concat(lignesInstagramJours_(jours.slice(i, i + 20), p));
-        fait = Math.min(i + 20, jours.length);
+        nIg += ecrire_(lignesInstagramJours_(jours.slice(i, i + 8), p)); // écrit au fur et à mesure
+        fait = Math.min(i + 8, jours.length);
+        if (fait < jours.length) sp.setProperty('HISTO_IG_CURSEUR', jours[fait]); // reprise possible en cas d'arrêt
       }
       if (fait < jours.length) {
         PropertiesService.getScriptProperties().setProperty('HISTO_IG_CURSEUR', jours[fait]);
@@ -215,7 +218,7 @@ function rattraperHistorique() {
 
     const n = ecrire_(lignes);
     const n2 = ecrire_(lignesNouveauxCalcules_());
-    return { lignes: n + n2, detail: etapes.join(' · ') };
+    return { lignes: n + n2 + nIg, detail: etapes.join(' · ') };
   });
 }
 
@@ -398,25 +401,42 @@ function lignesMetaAds_(debut, fin, p) {
 function tiktokLienAutorisation() {
   const p = props_();
   if (!p.TT_APP_ID) throw new Error('Ajoute d\'abord TT_APP_ID et TT_SECRET dans les propriétés du script.');
-  const url = ScriptApp.getService().getUrl();
-  if (!url) throw new Error('Déploie d\'abord le script en application Web (voir le guide, étape TikTok 4).');
-  Logger.log('1. URL de redirection à déclarer dans l\'app TikTok : ' + url);
-  Logger.log('2. Copie le lien d\'autorisation affiché dans le portail TikTok for Business (page de ton app), puis ouvre-le connecté au compte TikTok de POA.');
-  Logger.log('   Après validation, TikTok renvoie vers cette URL et le script enregistre les jetons tout seul.');
+  Logger.log('1. URL de redirection déclarée dans l\'app TikTok : ' + redirectTikTok_());
+  Logger.log('2. Ouvre le lien d\'autorisation du portail TikTok for Business, connecté au compte TikTok de POA, et valide.');
+  Logger.log('3. La page de retour affiche un code : colle-le dans la propriété TT_AUTH_CODE, puis exécute tiktokValiderCode (dans les 10 minutes).');
+}
+function redirectTikTok_() { return props_().TT_REDIRECT_URI || AUTO.TIKTOK_REDIRECT; }
+
+/** Échange le code affiché par la page de retour contre les jetons TikTok (à lancer une fois). */
+function tiktokValiderCode() {
+  const sp = PropertiesService.getScriptProperties();
+  const code = String(sp.getProperty('TT_AUTH_CODE') || '').trim();
+  if (!code) throw new Error('Ajoute d\'abord la propriété TT_AUTH_CODE avec le code affiché par la page de retour TikTok.');
+  const r = echangerCodeTikTok_(code, redirectTikTok_());
+  sp.deleteProperty('TT_AUTH_CODE'); // le code ne sert qu'une fois
+  if (r.code !== 0) throw new Error('TikTok a refusé le code (' + r.message + '). Il expire vite : relance l\'autorisation et valide le nouveau code tout de suite.');
+  Logger.log('TikTok est relié au dashboard POA (compte ' + (r.data.open_id || '') + '). Lance testerConnexion pour vérifier les chiffres.');
 }
 
-/** Retour d'autorisation TikTok (l'URL de l'application Web). */
-function doGet(e) {
-  const code = e && e.parameter && (e.parameter.code || e.parameter.auth_code);
-  if (!code) return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">POA · automatisation : aucun code TikTok reçu.</p>');
+function echangerCodeTikTok_(code, redirect) {
   const p = props_();
   const r = tiktokPost_('/tt_user/oauth2/token/', {
     client_id: p.TT_APP_ID, client_secret: p.TT_SECRET, grant_type: 'authorization_code',
-    auth_code: code, redirect_uri: ScriptApp.getService().getUrl(),
+    auth_code: code, redirect_uri: redirect,
   });
+  if (r.code === 0) {
+    enregistrerJetonsTikTok_(r.data);
+    journal_('Autorisation TikTok', 'OK', 0, 'Compte relié : ' + (r.data.open_id || ''));
+  }
+  return r;
+}
+
+/** Variante automatique si le script est publié en application Web et que son URL est déclarée chez TikTok. */
+function doGet(e) {
+  const code = e && e.parameter && (e.parameter.code || e.parameter.auth_code);
+  if (!code) return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">POA · automatisation : aucun code TikTok reçu.</p>');
+  const r = echangerCodeTikTok_(code, ScriptApp.getService().getUrl());
   if (r.code !== 0) return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">Échec TikTok : ' + escapeHtml_(r.message) + '</p>');
-  enregistrerJetonsTikTok_(r.data);
-  journal_('Autorisation TikTok', 'OK', 0, 'Compte relié : ' + (r.data.open_id || ''));
   return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">TikTok est relié au dashboard POA. Tu peux fermer cet onglet.</p>');
 }
 
@@ -615,8 +635,13 @@ function lignesNouveauxCalcules_() {
     if (!jour) return;
     const m = /^(ig|fb|tt)_(abonnes|nouveaux)$/.exec(String(code));
     if (!m) return;
-    if (m[2] === 'abonnes') (stock[m[1]] ||= {})[jour] = Number(v);
-    else if (src !== SOURCES.calcul) (existants[m[1]] ||= new Set()).add(jour);
+    if (m[2] === 'abonnes') {
+      if (!stock[m[1]]) stock[m[1]] = {};
+      stock[m[1]][jour] = Number(v);
+    } else if (src !== SOURCES.calcul) {
+      if (!existants[m[1]]) existants[m[1]] = new Set();
+      existants[m[1]].add(jour);
+    }
   });
   const lignes = [];
   Object.keys(stock).forEach(net => {
@@ -708,7 +733,7 @@ function graph_(chemin, params) { return graphUrl_(urlGraph_(chemin, params || {
 /** Appel Meta avec une nouvelle tentative si la plateforme est saturée. */
 function graphUrl_(url) {
   for (let essai = 0; essai < 3; essai++) {
-    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const res = fetchProtege_(url);
     let json;
     try { json = JSON.parse(res.getContentText()); }
     catch (e) { json = { error: { message: 'Réponse illisible (HTTP ' + res.getResponseCode() + ')', code: -1 } }; }
@@ -718,8 +743,33 @@ function graphUrl_(url) {
   }
 }
 
+/* Requêtes groupées par petits paquets : Google limite le nombre d'appels simultanés vers un même site */
+const PAQUET_PARALLELE = 4;
+/* UrlFetchApp.fetch avec une pause et une nouvelle tentative si Google signale trop d'appels */
+function fetchProtege_(url) {
+  for (let essai = 0; ; essai++) {
+    try { return UrlFetchApp.fetch(url, { muteHttpExceptions: true }); }
+    catch (e) {
+      if (essai >= 4 || !/too many times|trop de fois/i.test(e.message)) throw e;
+      Utilities.sleep(2000 * (essai + 1));
+    }
+  }
+}
+
 function graphMany_(requetes) {
-  const res = UrlFetchApp.fetchAll(requetes.map(r => ({ url: urlGraph_(r.chemin, r.params), muteHttpExceptions: true })));
+  let res = [];
+  for (let i = 0; i < requetes.length; i += PAQUET_PARALLELE) {
+    const lot = requetes.slice(i, i + PAQUET_PARALLELE).map(r => ({ url: urlGraph_(r.chemin, r.params), muteHttpExceptions: true }));
+    let rep;
+    try { rep = UrlFetchApp.fetchAll(lot); }
+    catch (e) {
+      if (!/too many times|trop de fois/i.test(e.message)) throw e;
+      Utilities.sleep(3000); // débit dépassé : on ralentit et on passe en séquentiel
+      rep = lot.map(r => { Utilities.sleep(400); return fetchProtege_(r.url); });
+    }
+    res = res.concat(rep);
+    if (i + PAQUET_PARALLELE < requetes.length) Utilities.sleep(600);
+  }
   return res.map((x, i) => {
     let json;
     try { json = JSON.parse(x.getContentText()); } catch (e) { json = { error: { message: 'Réponse illisible', code: -1 } }; }

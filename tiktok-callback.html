@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>POA · Autorisation TikTok</title>
+  <link rel="icon" href="favicon.ico" sizes="any" />
+  <style>
+    @font-face { font-family: 'Gravitas One'; src: url('gravitas-one.woff2') format('woff2'); font-display: swap; }
+    @font-face { font-family: 'Nobel Uno'; src: url('nobel-uno-regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'Nobel Uno'; src: url('nobel-uno-semibold.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+    :root { --ink: #23261E; --ink-2: #5C5F55; --ink-3: #8E8F86; --cream: #FFFAF2; --line: #EDE4D6; --sage: #93A170; --sage-ink: #2E3424; --rouge: #BF5223; --orange: #F79E2B; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+      background: var(--cream); color: var(--ink); font: 15px/1.55 'Nobel Uno', -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; }
+    .card { width: 100%; max-width: 520px; background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 28px; box-shadow: 0 4px 24px rgba(46, 52, 36, .06); }
+    .logo { display: block; height: 52px; margin-bottom: 18px; }
+    h1 { font-family: 'Gravitas One', Georgia, serif; font-weight: 400; font-size: 22px; line-height: 1.25; margin: 0 0 8px; color: var(--sage-ink); }
+    p { margin: 0 0 14px; color: var(--ink-2); }
+    .code { display: flex; gap: 8px; margin: 18px 0; }
+    .code input { flex: 1; min-width: 0; font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink);
+      background: var(--cream); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+    button { font: 600 14px 'Nobel Uno', sans-serif; color: #fff; background: var(--sage-ink); border: none; border-radius: 12px; padding: 0 18px; cursor: pointer; white-space: nowrap; }
+    button:focus-visible, .code input:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+    ol { margin: 0; padding-left: 20px; color: var(--ink-2); }
+    li { margin-bottom: 6px; }
+    code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: #F4EEE4; padding: 1px 6px; border-radius: 5px; color: var(--ink); }
+    .warn { border-left: 3px solid var(--rouge); padding-left: 12px; }
+    .muted { font-size: 13px; color: var(--ink-3); margin-top: 18px; margin-bottom: 0; }
+  </style>
+</head>
+<body>
+  <main class="card" id="card" aria-live="polite">
+    <img class="logo" src="logo.png" alt="POA" onerror="this.remove()" />
+    <h1>Autorisation TikTok</h1>
+    <p>Lecture du retour de TikTok…</p>
+  </main>
+
+  <script>
+    (function () {
+      const q = new URLSearchParams(location.search);
+      const code = q.get('code') || q.get('auth_code');
+      const err = q.get('error') || q.get('error_description');
+      const card = document.getElementById('card');
+      const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const head = '<img class="logo" src="logo.png" alt="POA" onerror="this.remove()" />';
+
+      if (code) {
+        card.innerHTML = head + `
+          <h1>TikTok a autorisé le dashboard POA</h1>
+          <p>Il reste une étape : transmettre ce code au script. <strong>Il expire au bout de quelques minutes</strong>, fais-le maintenant.</p>
+          <div class="code">
+            <input id="c" value="${esc(code)}" readonly aria-label="Code d'autorisation TikTok" />
+            <button type="button" id="b">Copier</button>
+          </div>
+          <ol>
+            <li>Dans Apps Script, roue dentée &gt; <strong>Propriétés du script</strong> : ajoute <code>TT_AUTH_CODE</code> avec ce code.</li>
+            <li>Reviens au code, choisis <strong>tiktokValiderCode</strong>, puis <strong>Exécuter</strong>.</li>
+            <li>Le journal affiche « TikTok est relié au dashboard POA ». Tu peux fermer cette page.</li>
+          </ol>
+          <p class="muted">Ce code ne sert qu'une fois et ne fonctionne qu'avec la clé secrète enregistrée dans le script.</p>`;
+        const input = document.getElementById('c'), btn = document.getElementById('b');
+        btn.addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(input.value); }
+          catch (e) { input.select(); document.execCommand('copy'); }
+          btn.textContent = 'Copié';
+          setTimeout(() => { btn.textContent = 'Copier'; }, 2000);
+        });
+        input.addEventListener('focus', () => input.select());
+      } else if (err) {
+        card.innerHTML = head + `
+          <h1>TikTok n'a pas donné l'autorisation</h1>
+          <p class="warn">${esc(err)}</p>
+          <p>Relance le lien d'autorisation depuis le portail TikTok for Business, connecté au compte TikTok de POA, et accepte la demande.</p>`;
+      } else {
+        card.innerHTML = head + `
+          <h1>Page de retour TikTok</h1>
+          <p>Cette page reçoit l'autorisation de TikTok pour le dashboard POA. Elle s'ouvre toute seule après la validation sur TikTok : il n'y a rien à faire ici.</p>`;
+      }
+    })();
+  </script>
+</body>
+</html>

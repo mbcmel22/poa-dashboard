@@ -98,8 +98,8 @@ Fichiers reconnus, en anglais ou en français : vue d'ensemble (vues des vidéos
 1. Le compte TikTok de POA doit être un **compte Entreprise** (Paramètres > Compte > Passer à un compte Entreprise).
 2. Crée un compte développeur sur le [portail TikTok API for Business](https://business-api.tiktok.com/portal), puis une app avec l'accès aux **comptes TikTok** (Accounts API). Demande les autorisations de lecture du profil, des statistiques du compte et de la liste des vidéos avec leurs statistiques. Description à donner : « Lecture des statistiques de notre propre compte pour notre tableau de bord interne ».
 3. Une fois l'app validée, note l'**App ID** et le **Secret** dans les propriétés du script : `TT_APP_ID`, `TT_SECRET`.
-4. Dans Apps Script : **Déployer** > **Nouveau déploiement** > type **Application Web**, exécuter en tant que **moi**, accès **Tout le monde**. Copie l'URL obtenue : c'est l'**URL de redirection** à déclarer dans l'app TikTok. (Elle ne montre aucune donnée : elle sert uniquement à recevoir l'autorisation.)
-5. Ouvre le **lien d'autorisation** fourni par le portail, connecté au compte TikTok de POA, et valide. La page « TikTok est relié au dashboard POA » confirme : les jetons sont enregistrés et se renouvellent seuls. Il faut réautoriser une fois par an : le script te prévient par e-mail un mois avant.
+4. **URL de redirection** à déclarer dans l'app TikTok : `https://poa-dashboard.vercel.app/tiktok-callback` (la page `tiktok-callback.html` du dépôt GitHub). Pas besoin de publier le script en application Web : l'adresse Apps Script dépasse la limite de 100 caractères du champ TikTok.
+5. Une fois l'app validée, ouvre le **lien d'autorisation** fourni par le portail, connecté au compte TikTok de POA, et valide. La page de retour affiche un **code** : ajoute-le dans la propriété du script `TT_AUTH_CODE`, puis exécute **tiktokValiderCode** dans les minutes qui suivent (le code expire vite). Les jetons sont enregistrés et se renouvellent seuls ; il faut réautoriser une fois par an, le script te prévient par e-mail un mois avant.
 6. Exécute **testerConnexion** et compare la réponse TikTok avec TikTok Studio, en particulier le nombre d'abonnés (`followers_count`). Exécute ensuite **rattraperHistorique** : l'API remonte environ 60 jours.
 
 Tu peux garder le plan B en secours : si l'API et un export donnent le même jour, la dernière valeur lue l'emporte.
@@ -143,7 +143,8 @@ Tu peux garder le plan B en secours : si l'API et un export donnent le même jou
 | `installerDeclencheurs` | Une fois (le relancer ne crée pas de doublon) |
 | `extraireTout` | Tourne seul chaque matin ; lançable à la main pour forcer une mise à jour |
 | `releverStories` | Tourne seul toutes les 6 h |
-| `tiktokLienAutorisation` | Rappelle l'URL de redirection TikTok à déclarer |
+| `tiktokLienAutorisation` | Rappelle l'URL de redirection TikTok et la marche à suivre |
+| `tiktokValiderCode` | Une fois, après l'autorisation TikTok : échange le code contre les jetons |
 
 ## Dépannage
 
@@ -154,6 +155,7 @@ Tu peux garder le plan B en secours : si l'API et un export donnent le même jou
 | Instagram absent sous la Page | Compte Instagram non professionnel ou non relié à la Page | Le relier dans les paramètres de la Page |
 | Journal : « Métrique … mise de côté » | Meta a retiré la métrique | Rien à faire ; l'indicateur reste en saisie manuelle |
 | TikTok : « rafraîchissement refusé » | Autorisation expirée ou révoquée | Partie 2, plan A, étape 5 |
+| TikTok a refusé le code | Code expiré (quelques minutes) ou déjà utilisé | Relance l'autorisation et valide le nouveau code tout de suite |
 | Import TikTok « Ignoré » | Fichier au format Excel ou image | Réexporte en CSV, ou dépose le .zip |
 | Dashboard : « flux auto non branché » | URL Flux_auto absente de `config.js` | Partie 3 |
 | Chiffres pas à jour sur le dashboard | Cache Google du CSV publié | Attends 5 minutes, puis Actualiser |
