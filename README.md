@@ -10,7 +10,11 @@ Dashboard web aux couleurs de POA, branché sur le Google Sheet **Tableau de bor
 4. **Publicité** : campagnes Meta Ads (coût par visite, par clic, par abonné), diffusion mensuelle, Google Ads.
 5. **Sources & automatisation** : état de chaque indicateur, son code, sa dernière valeur et son origine (Manuel / Auto).
 
-Le filtre **Période** (en haut) filtre tout le dashboard. Depuis « Tout », un clic sur un mois affiche ce mois seul ; chaque clic suivant ajoute ou retire un mois ; Maj + clic sélectionne une plage. Les tuiles affichent le total des mois choisis et, quand ces mois se suivent, le comparent à la période précédente de même durée. Les blocs sans donnée affichent un état vide explicite au lieu d'un graphique faux.
+Le filtre **Période** (en haut) filtre tout le dashboard et propose trois vues :
+- **Mois** : un clic sur un mois depuis « Tout » l'affiche seul ; chaque clic suivant ajoute ou retire un mois ; Maj + clic sélectionne une plage.
+- **Semaine** et **Jour** : raccourcis (7, 30 ou 90 derniers jours, 4 ou 12 dernières semaines, ce mois-ci, mois dernier, tout) ou dates personnalisées « du … au … ». Ces vues utilisent le détail quotidien de l'onglet Flux_auto (réseaux sociaux, Meta Ads) ; les chiffres saisis au mois (landing page, blocs de campagne) restent en vue Mois.
+
+Les tuiles affichent le total de la période et, quand elle est continue, le comparent à la période précédente de même durée.
 
 ## Contenu du dossier
 
@@ -26,8 +30,8 @@ nobel-uno-*.woff2                  police du texte (charte POA)
 logo.png                           logo POA + baseline (barre latérale)
 favicon.ico, favicon-32.png        icône d'onglet (mascotte sur rond vert)
 apple-touch-icon.png               icône sur l'écran d'accueil du téléphone
-GUIDE_AUTOMATISATION.md            ce qui est automatisable, plateforme par plateforme
-apps-script-meta.gs                script prêt à coller (Instagram, Facebook, Meta Ads)
+GUIDE_AUTOMATISATION.md            mise en route pas à pas de l'extraction automatique
+poa-automatisation.gs              script Apps Script : Instagram, Facebook, Meta Ads, TikTok
 modele_Flux_auto.csv               exemple de l'onglet Flux_auto
 vercel.json                        en-têtes de sécurité, site non indexé
 ```
@@ -76,9 +80,9 @@ Ensuite : tu modifies le Sheet, tu cliques **Actualiser** sur le dashboard. Comp
 
 Tu peux ajouter une ligne `Churn`, `NPS` ou `LTV / CAC` dans l'onglet : elle sera reconnue aussi.
 
-## 3. Automatiser (plus tard)
+## 3. Automatiser
 
-Voir `GUIDE_AUTOMATISATION.md`. En résumé : un script ajoute chaque jour des lignes dans un onglet `Flux_auto` (`Date | Code | Valeur | Source`), tu publies cet onglet en CSV, tu colles l'URL dans `SHEET_FLUX_AUTO_CSV`. Le dashboard fusionne tout seul.
+Voir `GUIDE_AUTOMATISATION.md`. En résumé : le script `poa-automatisation.gs` relève chaque matin Instagram, Facebook, Meta Ads et TikTok, et met à jour l'onglet `Flux_auto` (`Date | Code | Valeur | Source`). Tu publies cet onglet en CSV, tu colles l'URL dans `SHEET_FLUX_AUTO_CSV`. Le dashboard fusionne tout seul : une valeur automatique remplace la saisie manuelle quand elle couvre au moins 80 % des jours du mois.
 
 ## Réglages (`config.js`)
 

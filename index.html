@@ -69,7 +69,12 @@
       </div>
       <div class="period" role="group" aria-label="Période">
         <span class="period-label">Période</span>
+        <div class="seg" id="gran" role="group" aria-label="Regrouper par"></div>
         <div class="chips" id="period-chips"></div>
+        <div class="range" id="period-range" hidden>
+          <label>du <input type="date" id="d-from" /></label>
+          <label>au <input type="date" id="d-to" /></label>
+        </div>
         <span class="period-hint" id="period-hint"></span>
       </div>
     </header>
@@ -84,7 +89,7 @@
           <div class="card">
             <div class="card-head">
               <h2>Vues des publications</h2>
-              <span class="card-hint">Par mois et par réseau</span>
+              <span class="card-hint" data-gran-hint=" et par réseau">Par mois et par réseau</span>
             </div>
             <div class="chart" id="wrap-communaute"><canvas id="c-communaute"></canvas></div>
           </div>
@@ -123,11 +128,11 @@
 
         <div class="grid g-2">
           <div class="card">
-            <div class="card-head"><h2>Vues des publications</h2><span class="card-hint" id="hint-net-1">Par mois</span></div>
+            <div class="card-head"><h2>Vues des publications</h2><span class="card-hint" data-gran-hint="">Par mois</span></div>
             <div class="chart" id="wrap-abonnes"><canvas id="c-abonnes"></canvas></div>
           </div>
           <div class="card">
-            <div class="card-head"><h2>Interactions</h2><span class="card-hint">Par mois</span></div>
+            <div class="card-head"><h2>Interactions</h2><span class="card-hint" data-gran-hint="">Par mois</span></div>
             <div class="chart" id="wrap-interactions"><canvas id="c-interactions"></canvas></div>
           </div>
         </div>
@@ -154,7 +159,7 @@
         <div class="tiles" id="tiles-landing"></div>
         <div class="grid g-3-2">
           <div class="card">
-            <div class="card-head"><h2>Visites par mois</h2><span class="card-hint">Landing page</span></div>
+            <div class="card-head"><h2>Visites</h2><span class="card-hint">Landing page</span></div>
             <div class="chart" id="wrap-visites"><canvas id="c-visites"></canvas></div>
           </div>
           <div class="card">

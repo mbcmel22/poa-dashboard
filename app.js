@@ -66,7 +66,9 @@ const METRICS = [
   { code: 'lp_telechargements', sec: 'lp',   label: 'Téléchargements (landing)',     kind: 'flux', fmt: 'int',   match: /telechargement/ },
   { code: 'lp_abonnements',     sec: 'lp',   label: 'Abonnements (landing)',         kind: 'flux', fmt: 'int',   match: /abonnement/ },
 
+  { code: 'meta_depense',       sec: 'meta', label: 'Budget dépensé Meta Ads',       kind: 'flux', fmt: 'eur' },
   { code: 'meta_impressions',   sec: 'meta', label: 'Impressions Meta Ads',          kind: 'flux', fmt: 'int',   match: /impression/ },
+  { code: 'meta_clics',         sec: 'meta', label: 'Clics sur le lien Meta Ads',    kind: 'flux', fmt: 'int' },
   { code: 'meta_ctr',           sec: 'meta', label: 'Taux de clics Meta Ads',        kind: 'moy',  fmt: 'pct',   match: /taux de clics?|ctr/ },
   { code: 'meta_conversion',    sec: 'meta', label: 'Taux de conversion Meta Ads',   kind: 'moy',  fmt: 'pct',   match: /taux de conversion/ },
   { code: 'gads_impressions',   sec: 'gads', label: 'Impressions Google Ads',        kind: 'flux', fmt: 'int',   match: /impression/ },
@@ -86,9 +88,10 @@ const MONTHS_SHORT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.',
 
 /* ---------- État ---------- */
 const STATE = {
-  values: {}, autoLast: {}, autoRows: 0, unknownCodes: new Set(),
+  values: {}, autoLast: {}, autoRows: 0, autoSrc: {}, partial: [], unknownCodes: new Set(),
   campaigns: [], tests: [], warnings: [],
   months: [], sel: [], net: 'ig', mode: 'demo', charts: {},
+  gran: 'mois', daily: {}, weekly: {}, days: [], weeks: [], range: null, preset: null,
 };
 
 /* ============================================================
@@ -143,6 +146,15 @@ function parseDate(raw) {
 const ym = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const ymLabel = k => { if (!k) return ''; const [y, m] = k.split('-'); return `${MONTHS_SHORT[+m - 1]} ${y}`; };
 const ymShort = k => { if (!k) return ''; const [, m] = k.split('-'); return MONTHS_SHORT[+m - 1]; };
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDays = (k, n) => { const [y, m, d] = k.split('-').map(Number); return ymd(new Date(y, m - 1, d + n)); };
+const mondayOf = k => { const [y, m, d] = k.split('-').map(Number); const dt = new Date(y, m - 1, d); return addDays(k, -((dt.getDay() + 6) % 7)); };
+const dayShort = k => { const [, m, d] = k.split('-'); return `${+d} ${MONTHS_SHORT[+m - 1]}`; };
+const dayLabel = k => `${dayShort(k)} ${k.slice(0, 4)}`;
+/* Libellés selon la granularité choisie (mois, semaine, jour) */
+const keyShort = k => STATE.gran === 'mois' ? ymShort(k) : dayShort(k);
+const keyLabel = k => STATE.gran === 'mois' ? ymLabel(k) : STATE.gran === 'jour' ? dayLabel(k) : `sem. du ${dayLabel(k)}`;
+const keyHead = () => ({ mois: 'Mois', semaine: 'Semaine', jour: 'Jour' }[STATE.gran]);
 const fr = (n, d = 0) => n.toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
 
 function fmt(v, f) {
@@ -179,7 +191,7 @@ async function fetchCsv(url) {
 }
 
 async function loadData() {
-  Object.assign(STATE, { values: {}, autoLast: {}, autoRows: 0, unknownCodes: new Set(), campaigns: [], tests: [], warnings: [], fluxError: null });
+  Object.assign(STATE, { values: {}, daily: {}, weekly: {}, days: [], weeks: [], autoLast: {}, autoRows: 0, autoSrc: {}, partial: [], unknownCodes: new Set(), campaigns: [], tests: [], warnings: [], fluxError: null });
   let error = null;
 
   if (CONFIG.SHEET_POA_CSV) {
@@ -201,6 +213,7 @@ async function loadData() {
 
   deriveNewFollowers();
   computeMonths();
+  computeDays();
   return error;
 }
 
@@ -354,7 +367,10 @@ function parseFluxAuto(rows) {
     const v = parseValue(pick(r, ['valeur', 'value']), metric);
     if (v === null) continue;
     STATE.autoRows++;
+    const src = String(pick(r, ['source']) ?? '').trim();
+    if (src) (STATE.autoSrc[code] ||= new Set()).add(src);
     ((groups[code] ||= {})[ym(d)] ||= []).push({ d, v });
+    (STATE.daily[code] ||= {})[ymd(d)] = v; // détail jour par jour (vues Jour et Semaine)
     if (!STATE.autoLast[code] || d > STATE.autoLast[code]) STATE.autoLast[code] = d;
   }
   for (const [code, byMonth] of Object.entries(groups)) {
@@ -364,9 +380,30 @@ function parseFluxAuto(rows) {
       const v = kind === 'stock' ? list[list.length - 1].v
         : kind === 'flux' ? list.reduce((s, x) => s + x.v, 0)
         : list.reduce((s, x) => s + x.v, 0) / list.length;
+      // Un mois couvert en partie par l'automatisation ne remplace pas une saisie manuelle complète
+      const cov = kind === 'stock' ? 1 : monthCoverage(key, list);
+      const manual = STATE.values[code]?.[key];
+      if (cov < MIN_COUVERTURE && manual && manual.src === 'manuel') { STATE.partial.push({ code, key, cov, kept: 'manuel' }); continue; }
+      if (cov < MIN_COUVERTURE) STATE.partial.push({ code, key, cov, kept: 'auto' });
       setValue(code, key, v, 'auto');
     }
   }
+  // CTR Meta Ads recalculé sur le mois (clics ÷ impressions) plutôt qu'une moyenne de taux journaliers
+  for (const key of Object.keys(groups.meta_clics || {})) {
+    const c = STATE.values.meta_clics?.[key], i = STATE.values.meta_impressions?.[key];
+    if (c?.src === 'auto' && i?.src === 'auto' && i.v > 0) setValue('meta_ctr', key, c.v / i.v, 'auto');
+  }
+}
+
+/* Part des jours du mois présents dans Flux_auto (mois en cours : jusqu'à la veille) */
+const MIN_COUVERTURE = 0.8;
+function monthCoverage(key, list) {
+  const [y, m] = key.split('-').map(Number);
+  let days = new Date(y, m, 0).getDate();
+  const now = new Date();
+  if (y === now.getFullYear() && m === now.getMonth() + 1) days = Math.max(now.getDate() - 1, 1);
+  const distinct = new Set(list.map(x => x.d.toDateString())).size;
+  return Math.min(distinct / days, 1);
 }
 
 /* Nouveaux abonnés calculés à partir du total d'abonnés quand la ligne "Followers en plus" manque */
@@ -376,11 +413,33 @@ function deriveNewFollowers() {
     if (!stock) continue;
     const keys = Object.keys(stock).sort();
     keys.forEach((k, i) => {
-      if (i === 0 || val(`${n.key}_nouveaux`, k) !== null) return;
+      if (i === 0 || valM(`${n.key}_nouveaux`, k) !== null) return;
       const [y, m] = k.split('-').map(Number);
       const prevKey = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
       if (stock[prevKey]) setValue(`${n.key}_nouveaux`, k, stock[k].v - stock[prevKey].v, 'calcul');
     });
+  }
+}
+
+/* Jours couverts par Flux_auto (continu) et regroupement par semaine (lundi) */
+function computeDays() {
+  const all = new Set();
+  Object.values(STATE.daily).forEach(o => Object.keys(o).forEach(k => all.add(k)));
+  const sorted = [...all].sort();
+  STATE.days = []; STATE.weeks = []; STATE.weekly = {};
+  if (!sorted.length) return;
+  for (let k = sorted[0]; k <= sorted[sorted.length - 1]; k = addDays(k, 1)) STATE.days.push(k);
+  for (let w = mondayOf(STATE.days[0]); w <= STATE.days[STATE.days.length - 1]; w = addDays(w, 7)) STATE.weeks.push(w);
+  for (const [code, byDay] of Object.entries(STATE.daily)) {
+    const kind = BY_CODE[code].kind, groups = {};
+    Object.keys(byDay).sort().forEach(k => (groups[mondayOf(k)] ||= []).push(byDay[k]));
+    STATE.weekly[code] = Object.fromEntries(Object.entries(groups).map(([w, l]) => [w,
+      kind === 'stock' ? l[l.length - 1] : kind === 'flux' ? l.reduce((a, b) => a + b, 0) : l.reduce((a, b) => a + b, 0) / l.length]));
+  }
+  // CTR Meta Ads par jour et par semaine : clics ÷ impressions
+  for (const store of [STATE.daily, STATE.weekly]) {
+    const c = store.meta_clics || {}, i = store.meta_impressions || {};
+    Object.keys(c).forEach(k => { if (i[k] > 0) (store.meta_ctr ||= {})[k] = c[k] / i[k]; });
   }
 }
 
@@ -400,19 +459,37 @@ function computeMonths() {
 /* ============================================================
    ACCÈS AUX VALEURS
    ============================================================ */
-const periodMonths = () => STATE.months.filter(k => STATE.sel.includes(k));
-/* Mois choisis consécutifs ? (sinon pas de comparaison possible) */
+/* Clés de la granularité active : mois 'YYYY-MM', jours 'YYYY-MM-DD', semaines = lundi 'YYYY-MM-DD' */
+const allKeys = () => STATE.gran === 'mois' ? STATE.months : STATE.gran === 'jour' ? STATE.days : STATE.weeks;
+function periodMonths() {
+  if (STATE.gran === 'mois') return STATE.months.filter(k => STATE.sel.includes(k));
+  const { from, to } = STATE.range || {};
+  if (!from) return [];
+  if (STATE.gran === 'jour') return STATE.days.filter(k => k >= from && k <= to);
+  return STATE.weeks.filter(w => w <= to && addDays(w, 6) >= from);
+}
+/* Clés choisies consécutives ? (sinon pas de comparaison possible) */
 function isContiguous(months = periodMonths()) {
-  const idx = months.map(k => STATE.months.indexOf(k));
+  const keys = allKeys();
+  const idx = months.map(k => keys.indexOf(k));
   return idx.every((v, i) => i === 0 || v === idx[i - 1] + 1);
 }
 function prevMonths() {
-  const cur = periodMonths();
+  const cur = periodMonths(), keys = allKeys();
   if (!cur.length || !isContiguous(cur)) return [];
-  const i = STATE.months.indexOf(cur[0]);
-  return i - cur.length >= 0 ? STATE.months.slice(i - cur.length, i) : [];
+  const i = keys.indexOf(cur[0]);
+  return i - cur.length >= 0 ? keys.slice(i - cur.length, i) : [];
 }
-function val(code, key) { return STATE.values[code]?.[key]?.v ?? null; }
+const valM = (code, key) => STATE.values[code]?.[key]?.v ?? null; // toujours mensuel
+function val(code, key) {
+  if (STATE.gran === 'mois') return valM(code, key);
+  const v = (STATE.gran === 'jour' ? STATE.daily : STATE.weekly)[code]?.[key];
+  return v === undefined ? null : v;
+}
+function lastPointM(code) {
+  for (let i = STATE.months.length - 1; i >= 0; i--) { const v = valM(code, STATE.months[i]); if (v !== null) return { v, key: STATE.months[i] }; }
+  return null;
+}
 const series = (code, months = periodMonths()) => months.map(k => val(code, k));
 const hasAny = (codes, months = periodMonths()) => codes.some(c => months.some(k => val(c, k) !== null));
 
@@ -444,6 +521,11 @@ function lastPoint(code, months = periodMonths()) {
 
 function periodLabel(months = periodMonths()) {
   if (!months.length) return '';
+  if (STATE.gran !== 'mois') { // période en dates réelles
+    const a = months[0], b = STATE.gran === 'jour' ? months[months.length - 1] : addDays(months[months.length - 1], 6);
+    const fin = STATE.days.length && b > STATE.days[STATE.days.length - 1] ? STATE.days[STATE.days.length - 1] : b;
+    return a === fin ? dayLabel(a) : `${dayShort(a)} au ${dayLabel(fin)}`;
+  }
   if (months.length === 1) return ymLabel(months[0]);
   if (isContiguous(months)) return `${ymShort(months[0])} à ${ymLabel(months[months.length - 1])}`;
   if (months.length > 4) return `${months.length} mois choisis`;
@@ -551,12 +633,12 @@ function renderVue() {
 
   drawChart('communaute', {
     type: 'bar',
-    data: { labels: months.map(ymShort), datasets: NETS.map(n => barDs(n.label, series(`${n.key}_vues`), n.color, { stack: 'v' })) },
+    data: { labels: months.map(keyShort), datasets: NETS.map(n => barDs(n.label, series(`${n.key}_vues`), n.color, { stack: 'v' })) },
     options: commonOpts(v => fr(v), true, true, { footer: items => `Total : ${fr(items.reduce((s, i) => s + (i.raw || 0), 0))}` }),
   }, hasAny(netCodes('vues')), 'Aucune vue renseignée', "Onglet POA, lignes « Vues de publication »");
 
   $('objectifs').innerHTML = CONFIG.OBJECTIFS.map(o => {
-    const p = lastPoint(o.code, STATE.months);
+    const p = lastPointM(o.code);
     const cible = `${o.sens === 'max' ? '<' : '≥'} ${fmt(o.cible, o.format)}`;
     const st = !p ? statusHtml('none', 'À brancher')
       : (o.sens === 'max' ? p.v < o.cible : p.v >= o.cible) ? statusHtml('good', 'Atteint') : statusHtml('bad', 'Sous la cible');
@@ -621,7 +703,9 @@ function renderReseaux() {
 
   const t = (f, label, opts = {}) => tile({ label, value: agg(code(f), months), prev: pm.length ? agg(code(f), pm) : null, accent: n.color, ...opts });
   const lastSel = months[months.length - 1];
-  const ab = lastPoint(code('abonnes'), STATE.months.filter(k => k <= lastSel));
+  const abK = lastPoint(code('abonnes'), allKeys().filter(k => k <= lastSel));
+  const abM = abK ? null : lastPointM(code('abonnes')); // repli sur la dernière saisie mensuelle
+  const ab = abK ? { v: abK.v, lbl: keyLabel(abK.key) } : abM ? { v: abM.v, lbl: ymLabel(abM.key) } : null;
   $('tiles-reseaux').innerHTML = [
     t('vues', 'Vues des publications'),
     t('interactions', 'Interactions'),
@@ -630,10 +714,10 @@ function renderReseaux() {
     t('visites_profil', 'Visites du profil'),
     t('clics_lien', 'Clics sur le lien'),
     t('nouveaux', 'Nouveaux abonnés'),
-    tile({ label: 'Abonnés au total', value: ab ? ab.v : null, accent: n.color, note: ab ? `dernière saisie : ${ymLabel(ab.key)}` : '' }),
+    tile({ label: 'Abonnés au total', value: ab ? ab.v : null, accent: n.color, note: ab ? `relevé : ${ab.lbl}` : '' }),
   ].join('');
 
-  const labels = months.map(ymShort);
+  const labels = months.map(keyShort);
   const src = `Onglet POA, section Réseaux sociaux, ${n.label}`;
   drawChart('abonnes', { type: 'bar', data: { labels, datasets: [barDs('Vues', series(code('vues')), n.color)] }, options: commonOpts(v => fr(v), false, false) },
     hasAny([code('vues')]), `Aucune vue ${n.label} renseignée`, src);
@@ -654,12 +738,12 @@ function renderReseaux() {
   const fields = ['publications', 'vues', 'interactions', 'eng', 'visites_profil', 'clics_lien', 'nouveaux', 'abonnes'];
   const heads = { publications: 'Publications', vues: 'Vues', interactions: 'Interactions', eng: 'Engagement', visites_profil: 'Visites profil', clics_lien: 'Clics lien', nouveaux: 'Nouveaux abonnés', abonnes: 'Abonnés au total' };
   const rows = months.slice().reverse().filter(k => NET_FIELDS.some(f => val(code(f.key), k))).map(k =>
-    `<tr><td>${ymLabel(k)}</td>${fields.map(f => f === 'eng'
+    `<tr><td>${keyLabel(k)}</td>${fields.map(f => f === 'eng'
       ? `<td class="num ${engMonth(n.key, k) === null ? 'na' : ''}">${engMonth(n.key, k) === null ? '·' : fmt(engMonth(n.key, k), 'pct')}</td>`
       : cell(val(code(f), k))).join('')}</tr>`);
   $('t-efficacite').innerHTML = rows.length
-    ? `<table><thead><tr><th>Mois</th>${fields.map(f => `<th class="num">${heads[f]}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>
-       <p class="note">Taux d'engagement = interactions ÷ vues du mois, affiché à partir de ${MIN_VUES_ENGAGEMENT} vues. Les mois sans aucune activité sont masqués.</p>`
+    ? `<table><thead><tr><th>${keyHead()}</th>${fields.map(f => `<th class="num">${heads[f]}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>
+       <p class="note">Taux d'engagement = interactions ÷ vues, affiché à partir de ${MIN_VUES_ENGAGEMENT} vues. Les ${keyHead().toLowerCase()}s sans aucune activité sont masqués.</p>`
     : emptyState(`Aucune donnée ${n.label} sur la période`, 'Les lignes apparaîtront dès la première saisie');
 }
 const cell = (v, f = 'int') => `<td class="num ${v === null ? 'na' : ''}">${v === null ? '·' : fmt(v, f)}</td>`;
@@ -675,23 +759,30 @@ function renderLanding() {
     t('lp_duree', 'Durée moyenne de session', 'duree'), t('lp_rebond', 'Taux de rebond', 'pct'),
   ].join('');
 
-  drawChart('visites', { type: 'bar', data: { labels: months.map(ymShort), datasets: [barDs('Visites', series('lp_visites'), C.sageDk)] }, options: commonOpts(v => fr(v), false, false) },
-    hasAny(['lp_visites']), 'Aucune visite renseignée', "Saisis les visites dans la section LP de l'onglet POA");
+  drawChart('visites', { type: 'bar', data: { labels: months.map(keyShort), datasets: [barDs('Visites', series('lp_visites'), C.sageDk)] }, options: commonOpts(v => fr(v), false, false) },
+    hasAny(['lp_visites']), 'Aucune visite renseignée', STATE.gran === 'mois' ? "Saisis les visites dans la section LP de l'onglet POA" : MSG_MENSUEL);
 
   $('funnel-lp').innerHTML = funnelHtml([
     { label: 'Visites', v: agg('lp_visites', months) },
     { label: 'Téléchargements', v: agg('lp_telechargements', months) },
     { label: 'Abonnements', v: agg('lp_abonnements', months) },
-  ], 'Tunnel vide', 'Les données de la landing page sont encore à saisir');
+  ], 'Tunnel vide', STATE.gran === 'mois' ? 'Les données de la landing page sont encore à saisir' : MSG_MENSUEL);
 
   $('t-landing').innerHTML = tableByMonth(['lp_visites', 'lp_pages_visite', 'lp_duree', 'lp_rebond', 'lp_telechargements', 'lp_abonnements'], months);
 }
 
+const MSG_MENSUEL = 'Ces chiffres sont saisis au mois : passe en vue Mois pour les voir';
+/* Jours réellement couverts par la période (vue Jour ou Semaine) */
+function periodDays() {
+  const { from, to } = STATE.range || {};
+  return from ? STATE.days.filter(k => k >= from && k <= to) : [];
+}
+
 function tableByMonth(codes, months) {
   const rows = months.filter(k => codes.some(c => val(c, k) !== null));
-  if (!rows.length) return emptyState('Aucune donnée sur la période', 'Les lignes apparaîtront dès la première saisie');
-  return `<table><thead><tr><th>Mois</th>${codes.map(c => `<th class="num">${escapeHtml(BY_CODE[c].label)}</th>`).join('')}</tr></thead><tbody>
-    ${rows.slice().reverse().map(k => `<tr><td>${ymLabel(k)}</td>${codes.map(c => cell(val(c, k), BY_CODE[c].fmt)).join('')}</tr>`).join('')}</tbody></table>`;
+  if (!rows.length) return emptyState('Aucune donnée sur la période', STATE.gran === 'mois' ? 'Les lignes apparaîtront dès la première saisie' : MSG_MENSUEL);
+  return `<table><thead><tr><th>${keyHead()}</th>${codes.map(c => `<th class="num">${escapeHtml(BY_CODE[c].label)}</th>`).join('')}</tr></thead><tbody>
+    ${rows.slice().reverse().map(k => `<tr><td>${keyLabel(k)}</td>${codes.map(c => cell(val(c, k), BY_CODE[c].fmt)).join('')}</tr>`).join('')}</tbody></table>`;
 }
 
 /* ============================================================
@@ -700,16 +791,21 @@ function tableByMonth(codes, months) {
 function renderPub() {
   const months = periodMonths();
   const all = STATE.campaigns;
-  const camps = all.filter(c => months.includes(c.month));
+  const mensuel = STATE.gran === 'mois';
+  // Les campagnes sont saisies au mois : en vue Jour ou Semaine, on montre celles des mois touchés par la période
+  const moisCouverts = mensuel ? months : [...new Set(periodDays().map(k => k.slice(0, 7)))];
+  const camps = all.filter(c => moisCouverts.includes(c.month));
   const outside = all.length - camps.length;
-  $('hint-tests').textContent = `${camps.length} campagne${camps.length > 1 ? 's' : ''} sur la période${outside ? ` · ${outside} hors période` : ''}`;
+  $('hint-tests').textContent = `${camps.length} campagne${camps.length > 1 ? 's' : ''} ${mensuel ? 'sur la période' : 'sur les mois couverts (saisie mensuelle)'}${outside ? ` · ${outside} hors période` : ''}`;
 
-  const tot = k => sum(camps.map(c => c[k] ?? null));
-  const spent = tot('depense');
+  // Tuiles : blocs de campagne en vue Mois, sinon chiffres quotidiens du compte publicitaire (Flux_auto)
+  const tot = k => mensuel ? sum(camps.map(c => c[k] ?? null)) : null;
+  const ctrAuto = ratio(agg('meta_clics', months), agg('meta_impressions', months));
+  const spent = tot('depense') ?? agg('meta_depense', months);
   $('tiles-pub').innerHTML = [
     tile({ label: 'Budget dépensé', value: spent, f: 'eur', note: periodLabel() }),
     tile({ label: 'Visites du profil obtenues', value: tot('visites'), note: `${fmt(ratio(spent, tot('visites')), 'eur')} par visite` }),
-    tile({ label: 'Clics sur le lien', value: tot('clics'), note: `CTR ${fmt(ratio(tot('clics'), tot('vues')), 'pct')}` }),
+    tile({ label: 'Clics sur le lien', value: tot('clics') ?? agg('meta_clics', months), note: `CTR ${fmt(ratio(tot('clics'), tot('vues')) ?? ctrAuto ?? agg('meta_ctr', months), 'pct')}` }),
     tile({ label: 'Nouveaux abonnés', value: tot('followers'), note: `${fmt(ratio(spent, tot('followers')), 'eur')} par abonné` }),
   ].join('');
 
@@ -738,8 +834,9 @@ function renderPub() {
       barDs('Nouveaux abonnés', camps.map(c => c.followers ?? null), C.terra)] },
     options: commonOpts(v => fr(v)) }, camps.length > 0, 'Aucune campagne', 'Les résultats apparaîtront ici');
 
-  const metaVues = months.map(k => sum([val('meta_impressions', k), sum(all.filter(c => c.month === k).map(c => c.vues ?? null))]));
-  drawChart('impr', { type: 'bar', data: { labels: months.map(ymShort), datasets: [
+  // Impressions du compte si elles existent, sinon vues saisies dans les blocs de campagne (jamais les deux)
+  const metaVues = months.map(k => val('meta_impressions', k) ?? (mensuel ? sum(all.filter(c => c.month === k).map(c => c.vues ?? null)) : null));
+  drawChart('impr', { type: 'bar', data: { labels: months.map(keyShort), datasets: [
       barDs('Meta Ads', metaVues, C.meta), barDs('Google Ads', series('gads_impressions'), C.gads)] }, options: commonOpts(v => fr(v)) },
     metaVues.some(v => v !== null) || hasAny(['gads_impressions']), 'Aucune diffusion', 'Sections Meta Ads et Google Ads');
 
@@ -771,15 +868,18 @@ function renderSources() {
 
   const order = { rs: 0, lp: 1, meta: 2, gads: 3, biz: 4 };
   const rows = METRICS.slice().sort((a, b) => order[a.sec] - order[b.sec]).map(m => {
-    const p = lastPoint(m.code, STATE.months);
+    const p = lastPointM(m.code);
     const srcs = new Set(Object.values(STATE.values[m.code] || {}).map(x => x.src));
-    const src = srcs.has('auto') ? '<span class="src auto">Auto</span>' : srcs.has('manuel') ? '<span class="src manuel">Manuel</span>'
+    const autoNames = STATE.autoSrc[m.code] ? [...STATE.autoSrc[m.code]].join(', ') : '';
+    const src = srcs.has('auto') ? `<span class="src auto" title="${escapeHtml(autoNames)}">Auto</span>${autoNames ? `<span class="src-detail">${escapeHtml(autoNames)}</span>` : ''}` : srcs.has('manuel') ? '<span class="src manuel">Manuel</span>'
       : srcs.has('calcul') ? '<span class="src manuel">Calculé</span>' : '<span class="src vide">Vide</span>';
     return `<tr><td><span class="sec-tag">${SECTIONS[m.sec]}</span></td><td>${escapeHtml(m.label)}</td><td><code>${m.code}</code></td>
       <td class="num ${p ? '' : 'na'}">${p ? fmt(p.v, m.fmt) : '·'}</td><td>${p ? ymLabel(p.key) : '<span class="na">Jamais</span>'}</td><td>${src}</td></tr>`;
   }).join('');
+  const kept = STATE.partial.filter(x => x.kept === 'manuel');
+  const partialNote = kept.length ? `<p class="note">Saisie manuelle conservée quand l'automatisation ne couvre qu'une partie du mois (moins de ${MIN_COUVERTURE * 100} % des jours) : ${kept.map(x => `<code>${x.code}</code> ${ymLabel(x.key)} (${Math.round(x.cov * 100)} %)`).join(', ')}.</p>` : '';
   const unknown = STATE.unknownCodes.size ? `<p class="note">Codes inconnus ignorés dans Flux_auto : ${[...STATE.unknownCodes].map(c => `<code>${escapeHtml(c)}</code>`).join(' ')}</p>` : '';
-  $('t-sources').innerHTML = `<table><thead><tr><th>Section</th><th>Indicateur</th><th>Code</th><th class="num">Dernière valeur</th><th>Mois</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table>${unknown}`;
+  $('t-sources').innerHTML = `<table><thead><tr><th>Section</th><th>Indicateur</th><th>Code</th><th class="num">Dernière valeur</th><th>Mois</th><th>Source</th></tr></thead><tbody>${rows}</tbody></table>${partialNote}${unknown}`;
 }
 
 /* ============================================================
@@ -802,7 +902,47 @@ function showPage(id) {
 function initPeriod() {
   STATE.sel = STATE.sel.filter(k => STATE.months.includes(k));
   if (!STATE.sel.length) STATE.sel = STATE.months.slice();
-  renderChips();
+  if (STATE.gran !== 'mois' && !STATE.days.length) STATE.gran = 'mois'; // pas de données quotidiennes
+  if (STATE.days.length) {
+    const first = STATE.days[0], last = STATE.days[STATE.days.length - 1];
+    if (!STATE.range) applyPreset(STATE.preset || '30j');
+    else if (STATE.preset) applyPreset(STATE.preset); // un raccourci suit les nouvelles données
+    else STATE.range = { from: clampDay(STATE.range.from), to: clampDay(STATE.range.to) };
+    ['d-from', 'd-to'].forEach(id => { $(id).min = first; $(id).max = last; });
+  }
+  renderPeriod();
+}
+const clampDay = k => { const f = STATE.days[0], l = STATE.days[STATE.days.length - 1]; return k < f ? f : k > l ? l : k; };
+
+/* Raccourcis de période, calculés à partir du dernier jour disponible (la veille en général) */
+const PRESETS = {
+  jour:    [['7j', '7 derniers jours'], ['30j', '30 derniers jours'], ['90j', '90 derniers jours'], ['mois', 'Ce mois-ci'], ['moisprec', 'Mois dernier'], ['tout', 'Tout']],
+  semaine: [['4s', '4 dernières semaines'], ['12s', '12 dernières semaines'], ['mois', 'Ce mois-ci'], ['moisprec', 'Mois dernier'], ['tout', 'Tout']],
+};
+function applyPreset(id) {
+  const last = STATE.days[STATE.days.length - 1], first = STATE.days[0];
+  const n = { '7j': 7, '30j': 30, '90j': 90, '4s': 28, '12s': 84 }[id];
+  let from, to = last;
+  if (n) from = STATE.gran === 'semaine' ? mondayOf(addDays(last, -(n - 1))) : addDays(last, -(n - 1));
+  else if (id === 'mois') from = last.slice(0, 8) + '01';
+  else if (id === 'moisprec') { to = addDays(last.slice(0, 8) + '01', -1); from = to.slice(0, 8) + '01'; }
+  else { from = first; id = 'tout'; }
+  STATE.range = { from: clampDay(from), to: clampDay(to) };
+  STATE.preset = id;
+}
+
+function renderPeriod() {
+  const g = STATE.gran, hasDaily = STATE.days.length > 0;
+  $('gran').innerHTML = [['jour', 'Jour'], ['semaine', 'Semaine'], ['mois', 'Mois']].map(([k, l]) => {
+    const off = k !== 'mois' && !hasDaily;
+    return `<button type="button" data-g="${k}" class="${g === k ? 'on' : ''}" aria-pressed="${g === k}" ${off ? 'disabled title="Disponible dès que l\'automatisation alimente Flux_auto"' : ''}>${l}</button>`;
+  }).join('');
+  $('period-range').hidden = g === 'mois';
+  if (g === 'mois') { renderChips(); return; }
+  $('period-chips').innerHTML = PRESETS[g].map(([id, l]) =>
+    `<button type="button" class="chip ${STATE.preset === id ? 'on' : ''}" data-p="${id}" aria-pressed="${STATE.preset === id}">${l}</button>`).join('');
+  $('d-from').value = STATE.range.from; $('d-to').value = STATE.range.to;
+  $('period-hint').textContent = `${periodLabel()} · détail ${g === 'jour' ? 'quotidien' : 'hebdomadaire'} des données automatiques (réseaux sociaux, Meta Ads)`;
 }
 
 /* Filtre de période : puces de mois.
@@ -823,6 +963,7 @@ function renderChips() {
 
 function onChip(e) {
   const b = e.target.closest('.chip'); if (!b) return;
+  if (b.dataset.p) { applyPreset(b.dataset.p); renderPeriod(); renderAll(); return; }
   const k = b.dataset.k;
   const all = STATE.sel.length === STATE.months.length;
   if (k === 'all') STATE.sel = STATE.months.slice();
@@ -836,7 +977,33 @@ function onChip(e) {
   renderChips(); renderAll();
 }
 
-function renderAll() { renderVue(); renderReseaux(); renderLanding(); renderPub(); renderSources(); }
+function onGran(e) {
+  const b = e.target.closest('button[data-g]'); if (!b || b.disabled) return;
+  STATE.gran = b.dataset.g;
+  try { localStorage.setItem('poa-gran', STATE.gran); } catch (err) { /* stockage indisponible */ }
+  // Une période personnalisée est gardée ; un raccourci est converti en son équivalent
+  if (STATE.gran !== 'mois' && (STATE.preset || !STATE.range)) {
+    const eq = { '7j': '4s', '30j': '4s', '90j': '12s', '4s': '30j', '12s': '90j' };
+    const p = STATE.preset && PRESETS[STATE.gran].some(([id]) => id === STATE.preset) ? STATE.preset : (eq[STATE.preset] || (STATE.gran === 'jour' ? '30j' : '12s'));
+    applyPreset(p);
+  }
+  renderPeriod(); renderAll();
+}
+
+function onDates() {
+  let from = $('d-from').value, to = $('d-to').value;
+  if (!from || !to) return;
+  if (from > to) [from, to] = [to, from];
+  STATE.range = { from: clampDay(from), to: clampDay(to) };
+  STATE.preset = null; // période personnalisée
+  renderPeriod(); renderAll();
+}
+
+function renderAll() {
+  const par = { mois: 'Par mois', semaine: 'Par semaine', jour: 'Par jour' }[STATE.gran];
+  document.querySelectorAll('[data-gran-hint]').forEach(el => { el.textContent = par + el.dataset.granHint; });
+  renderVue(); renderReseaux(); renderLanding(); renderPub(); renderSources();
+}
 
 function setStatus() {
   const el = $('source-status');
@@ -866,6 +1033,10 @@ async function refresh(manual = false) {
 async function init() {
   setupChartDefaults();
   $('period-chips').addEventListener('click', onChip);
+  $('gran').addEventListener('click', onGran);
+  $('d-from').addEventListener('change', onDates);
+  $('d-to').addEventListener('change', onDates);
+  try { const g = localStorage.getItem('poa-gran'); if (['jour', 'semaine', 'mois'].includes(g)) STATE.gran = g; } catch (e) { /* stockage indisponible */ }
   try { const saved = localStorage.getItem('poa-net'); if (NETS.some(n => n.key === saved)) STATE.net = saved; } catch (e) { /* stockage indisponible */ }
   $('net-tabs').addEventListener('click', e => {
     const b = e.target.closest('.net-tab'); if (!b) return;
