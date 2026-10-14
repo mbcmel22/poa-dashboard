@@ -1,6 +1,11 @@
 Date,Code,Valeur,Source
-2026-10-12,ig_abonnes,72,Apps Script
-2026-10-12,ig_interactions,9,Apps Script
-2026-10-12,meta_impressions,412,Apps Script
-2026-10-12,meta_ctr,3.4%,Apps Script
+2026-10-12,ig_vues,148,Meta API
+2026-10-12,ig_interactions,9,Meta API
+2026-10-12,ig_abonnes,61,Meta API
+2026-10-12,ig_nouveaux,1,Calcul (écart abonnés)
+2026-10-12,fb_vues,32,Meta API
+2026-10-12,tt_vues,210,TikTok Studio (export)
+2026-10-12,meta_depense,4.5,Meta API
+2026-10-12,meta_impressions,412,Meta API
+2026-10-12,meta_clics,7,Meta API
 2026-10-31,churn,5.2%,Saisie manuelle
