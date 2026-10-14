@@ -10,9 +10,13 @@ Dashboard web aux couleurs de POA, branché sur le Google Sheet **Tableau de bor
 4. **Publicité** : campagnes Meta Ads (coût par visite, par clic, par abonné), diffusion mensuelle, Google Ads.
 5. **Sources & automatisation** : état de chaque indicateur, son code, sa dernière valeur et son origine (Manuel / Auto).
 
-Le filtre **Période** (en haut) filtre tout le dashboard et propose trois vues :
+Le filtre **Période** (en haut) filtre tout le dashboard et propose quatre vues :
+- **Jour** : « Aujourd'hui », « Hier » ou n'importe quel jour dans le calendrier. Les tuiles comparent à la veille ; les graphiques montrent les 14 jours jusqu'au jour choisi, mis en avant.
+- **Semaine** : « Cette semaine », « Semaine dernière » ou une semaine choisie d'un clic dans le calendrier (lundi à dimanche). Comparaison avec la semaine précédente ; graphiques sur les 8 semaines jusqu'à celle choisie.
 - **Mois** : un clic sur un mois depuis « Tout » l'affiche seul ; chaque clic suivant ajoute ou retire un mois ; Maj + clic sélectionne une plage.
-- **Semaine** et **Jour** : raccourcis (7, 30 ou 90 derniers jours, 4 ou 12 dernières semaines, ce mois-ci, mois dernier, tout) ou dates personnalisées « du … au … ». Ces vues utilisent le détail quotidien de l'onglet Flux_auto (réseaux sociaux, Meta Ads) ; les chiffres saisis au mois (landing page, blocs de campagne) restent en vue Mois.
+- **Personnalisé** : raccourcis (7, 30 ou 90 derniers jours, ce mois-ci, mois dernier, tout) ou une période choisie en deux clics dans le calendrier (premier jour, puis dernier jour).
+
+Les vues Jour, Semaine et Personnalisé utilisent le détail quotidien de l'onglet Flux_auto (réseaux sociaux, Meta Ads). Les chiffres saisis au mois (landing page, blocs de campagne) restent en vue Mois. Dans le calendrier, un point signale les jours qui ont des chiffres ; ceux d'une journée arrivent le lendemain vers 7 h.
 
 Les tuiles affichent le total de la période et, quand elle est continue, le comparent à la période précédente de même durée.
 
