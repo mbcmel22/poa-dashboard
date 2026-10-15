@@ -86,11 +86,25 @@ Si le jeton cesse un jour de fonctionner (mot de passe changé, utilisateur syst
 
 ### Plan B, opérationnel aujourd'hui : l'export TikTok Studio (2 minutes par semaine)
 1. Dans Google Drive (le même compte que le script), crée un dossier nommé exactement **`POA - Import TikTok`**.
-2. Chaque lundi, sur ordinateur : **TikTok Studio** > **Statistiques** > **Télécharger les données**, période 7 jours (ou 28), format **CSV**.
-3. Dépose le fichier, ou le `.zip` tel quel, dans le dossier.
-4. Le lendemain à 7 h, le script lit les fichiers, verse les chiffres dans Flux_auto et les range dans un sous-dossier **Importés**. Le journal indique combien de lignes ont été importées.
+2. **La première fois** : sur ordinateur, **TikTok Studio** > **Données analytiques**, période **365 derniers jours**, puis **Télécharger les données** depuis chacun des onglets **Vue d'ensemble**, **Contenu**, **Spectateurs** et **Followers**. Ensuite, **chaque lundi**, même chose sur **28 derniers jours** (le chevauchement protège d'un oubli, sans créer de doublon).
+3. Dépose les `.zip` tels quels dans le dossier. Le lendemain à 7 h (ou tout de suite avec `extraireTout`), le script les lit et les range dans **Importés**.
 
-Fichiers reconnus, en anglais ou en français : vue d'ensemble (vues des vidéos, vues du profil, j'aime, commentaires, partages), historique des abonnés (total et variation) et contenu (une ligne par vidéo, pour compter les publications). Si un fichier n'est pas reconnu, le journal le signale : envoie-moi ses en-têtes de colonnes et j'adapte la lecture.
+Ce que le script tire de chaque export :
+
+| Export | Contenu | Où ça va |
+|---|---|---|
+| Vue d'ensemble (`Overview.csv`) | vues, vues du profil, j'aime, commentaires, partages par jour | Flux_auto |
+| Followers (`FollowerHistory.csv`) | total d'abonnés par jour ; les abonnés gagnés sont recalculés à partir des totaux (la colonne « Difference » de TikTok est décalée d'un jour) | Flux_auto |
+| Spectateurs (`Viewers.csv`) | spectateurs uniques, nouveaux et fidèles par jour | Flux_auto |
+| Contenu (`Content.csv`) | vues, j'aime, commentaires et partages de chaque vidéo | onglet **Contenus** |
+
+Les dates des exports n'ont pas d'année : le script la déduit en remontant le fichier depuis la dernière ligne. Les mois d'avant la première activité du compte sont ignorés. Sous 100 abonnés, les fichiers de genre, pays et activité des abonnés sont vides : c'est normal.
+
+### Audience : genre, âge, sources de trafic, recherches (2 minutes par mois)
+Ces répartitions s'affichent dans TikTok Studio mais ne sont pas dans les exports. Elles se saisissent dans l'onglet **Audience** du Sheet, une ligne par valeur : `Date | Plateforme | Dimension | Segment | Valeur | Période` (exemple : `2026-11-15 | TikTok | Âge | 25-34 | 41,6% | 60 jours`).
+- Lance une fois **preparerAudience** : l'onglet est créé et pré-rempli avec le relevé du 15 octobre 2026.
+- Chaque mois, ajoute de nouvelles lignes avec la date du jour, sans effacer les anciennes : le dashboard affiche le dernier relevé et l'écart avec le précédent.
+- Prends l'onglet Spectateurs sur **60 jours** pour le genre et l'âge : sur 7 jours, l'échantillon est trop petit.
 
 ### Plan A, la cible : l'API officielle (TikTok for Business)
 À lancer en parallèle, car TikTok doit valider l'app (quelques jours en général).
@@ -108,10 +122,12 @@ Tu peux garder le plan B en secours : si l'API et un export donnent le même jou
 
 ## Partie 3 : brancher le dashboard
 
-1. Google Sheet > **Fichier** > **Partager** > **Publier sur le web** > onglet **Flux_auto**, format **CSV** > **Publier**. Ne publie que cet onglet (et l'onglet POA), jamais le document entier.
+1. Google Sheet > **Fichier** > **Partager** > **Publier sur le web** > onglet **Flux_auto**, format **CSV** > **Publier**. Recommence pour les onglets **Audience** et **Contenus**. Ne publie que ces onglets (et l'onglet POA), jamais le document entier.
 2. Colle l'URL dans `config.js`, entre apostrophes :
    ```js
    SHEET_FLUX_AUTO_CSV: 'https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&single=true&output=csv',
+   SHEET_AUDIENCE_CSV: '...',   // onglet Audience
+   SHEET_CONTENUS_CSV: '...',   // onglet Contenus
    ```
 3. Envoie `config.js` sur GitHub : Vercel redéploie.
 4. Page **Sources & automatisation** : le statut affiche « flux auto actif » et chaque indicateur alimenté passe en **Auto**, avec le nom de sa source.
@@ -143,6 +159,7 @@ Tu peux garder le plan B en secours : si l'API et un export donnent le même jou
 | `installerDeclencheurs` | Une fois (le relancer ne crée pas de doublon) |
 | `extraireTout` | Tourne seul chaque matin ; lançable à la main pour forcer une mise à jour |
 | `releverStories` | Tourne seul toutes les 6 h |
+| `preparerAudience` | Une fois : crée l'onglet Audience pré-rempli (ne touche à rien s'il contient déjà des données) |
 | `tiktokLienAutorisation` | Rappelle l'URL de redirection TikTok et la marche à suivre |
 | `tiktokValiderCode` | Une fois, après l'autorisation TikTok : échange le code contre les jetons |
 

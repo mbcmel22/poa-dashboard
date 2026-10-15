@@ -44,6 +44,8 @@ const AUTO = {
   FEUILLE: 'Flux_auto',
   JOURNAL: 'Journal_auto',
   STORIES: '_stories',                      // onglet technique : stories vues passer
+  CONTENUS: 'Contenus',                     // une ligne par publication (vues, j'aime...)
+  AUDIENCE: 'Audience',                     // répartitions (genre, âge, sources, recherches)
   JOURS_RELECTURE: 3,                       // la veille + 2 jours de correction
   HISTORIQUE_DEPUIS: '2026-07-01',          // début du rattrapage (toujours un 1er du mois)
   DOSSIER_IMPORT_TIKTOK: 'POA - Import TikTok', // plan B : exports TikTok Studio déposés ici
@@ -149,6 +151,7 @@ function extraireTout() {
         l = l.concat(lignesPublicationsInstagram_(debut, fin, p));
         const ig = graph_(p.IG_USER_ID, { fields: 'followers_count' });
         if (!ig.error) l.push([fin, 'ig_abonnes', ig.followers_count, SOURCES.meta]);
+        ecrireContenus_(contenusInstagram_(p)); // statistiques par publication
         return l;
       });
     }
@@ -222,6 +225,30 @@ function rattraperHistorique() {
   });
 }
 
+/**
+ * Crée l'onglet Audience (à remplir une fois par mois depuis TikTok Studio et Instagram).
+ * Une ligne par valeur : Date | Plateforme | Dimension | Segment | Valeur | Période.
+ * Pré-rempli avec le relevé TikTok du 15 octobre 2026.
+ */
+function preparerAudience() {
+  const sh = feuille_(AUTO.AUDIENCE, ['Date', 'Plateforme', 'Dimension', 'Segment', 'Valeur', 'Période']);
+  if (sh.getLastRow() > 1) { Logger.log('L\'onglet Audience contient déjà des données : rien n\'a été modifié.'); return; }
+  const d = '2026-10-15', t = 'TikTok';
+  const lignes = [
+    [d, t, 'Genre', 'Femmes', 0.83, '7 jours'], [d, t, 'Genre', 'Hommes', 0.16, '7 jours'], [d, t, 'Genre', 'Autre', 0.01, '7 jours'],
+    [d, t, 'Âge', '18-24', 0.235, '7 jours'], [d, t, 'Âge', '25-34', 0.416, '7 jours'], [d, t, 'Âge', '35-44', 0.141, '7 jours'],
+    [d, t, 'Âge', '45-54', 0.135, '7 jours'], [d, t, 'Âge', '55+', 0.073, '7 jours'],
+    [d, t, 'Source de trafic', 'Pour toi', 0.971, '60 jours'], [d, t, 'Source de trafic', 'Profil personnel', 0.025, '60 jours'],
+    [d, t, 'Source de trafic', 'Recherche', 0.004, '60 jours'], [d, t, 'Source de trafic', 'Suivi(e)s', 0, '60 jours'], [d, t, 'Source de trafic', 'Son', 0, '60 jours'],
+    [d, t, 'Recherche', 'fondue avec cancoillotte', 0.182, '60 jours'], [d, t, 'Recherche', 'poa', 0.182, '60 jours'],
+    [d, t, 'Recherche', 'fondue au bouillon calories', 0.091, '60 jours'], [d, t, 'Recherche', 'fondu pas calorique', 0.091, '60 jours'],
+  ];
+  sh.getRange(2, 1, lignes.length, 1).setNumberFormat('@');
+  sh.getRange(2, 1, lignes.length, 6).setValues(lignes);
+  sh.getRange(2, 5, lignes.length, 1).setNumberFormat('0.0%');
+  Logger.log('Onglet Audience créé avec ' + lignes.length + ' lignes. Publie-le en CSV et colle l\'URL dans config.js (SHEET_AUDIENCE_CSV).');
+}
+
 /** Installe les déclencheurs : extraction chaque jour vers 7 h, stories toutes les 6 h. */
 function installerDeclencheurs() {
   ScriptApp.getProjectTriggers()
@@ -293,6 +320,28 @@ function lignesPublicationsInstagram_(debut, fin, p) {
   if (r && r.error) { journalErreurApi_('Instagram publications', r.error); return []; }
   const stories = storiesParJour_();
   return Object.keys(parJour).map(d => [d, 'ig_publications', parJour[d] + (stories[d] || 0), SOURCES.meta]);
+}
+
+/** Statistiques de chaque publication Instagram (50 dernières) -> onglet Contenus */
+function contenusInstagram_(p) {
+  const r = graph_(p.IG_USER_ID + '/media', { fields: 'id,caption,permalink,timestamp,media_product_type,like_count,comments_count', limit: 50 });
+  if (r.error) { journalErreurApi_('Instagram contenus', r.error); return []; }
+  const medias = r.data || [];
+  let ms = metriquesAcceptees_('igmedia', ['views', 'shares', 'saved']);
+  const req = (m, liste) => ({ chemin: m.id + '/insights', params: { metric: liste.join(',') } });
+  let reps = ms.length ? graphMany_(medias.map(m => req(m, ms))) : medias.map(() => ({ data: [] }));
+  if (reps.some(x => estMetriqueInvalide_(x)) && medias.length) {
+    sonderMetriques_('igmedia', ms, m => graph_(req(medias[0], [m]).chemin, req(medias[0], [m]).params));
+    ms = metriquesAcceptees_('igmedia', ['views', 'shares', 'saved']);
+    reps = ms.length ? graphMany_(medias.map(m => req(m, ms))) : medias.map(() => ({ data: [] }));
+  }
+  const today = jour_(0);
+  return medias.map((m, i) => {
+    const v = {};
+    ((reps[i] && reps[i].data) || []).forEach(x => { v[x.name] = x.values && x.values[0] ? x.values[0].value : (x.total_value ? x.total_value.value : null); });
+    return { plateforme: 'Instagram', publie: dateLocale_(m.timestamp), titre: String(m.caption || '').replace(/\s+/g, ' ').trim(), lien: m.permalink,
+      vues: v.views, likes: m.like_count, commentaires: m.comments_count, partages: v.shares, enregistrements: v.saved, releve: today, source: SOURCES.meta };
+  });
 }
 
 function releverStories_(p) {
@@ -550,7 +599,7 @@ function fichiersImportTikTok_() {
 }
 
 function importerExportsTikTok_() {
-  let lignes = [];
+  let lignes = [], contenus = [];
   fichiersImportTikTok_().forEach(({ fichier, dossier }) => {
     const nom = fichier.getName();
     let tables = [];
@@ -559,60 +608,131 @@ function importerExportsTikTok_() {
       if (/\.zip$/i.test(nom)) tables = Utilities.unzip(blob).filter(b => /\.csv$/i.test(b.getName())).map(b => ({ nom: b.getName(), csv: b.getDataAsString('UTF-8') }));
       else if (/\.csv$/i.test(nom)) tables = [{ nom: nom, csv: blob.getDataAsString('UTF-8') }];
       else { journal_('Import TikTok', 'Ignoré', 0, nom + ' : exporte en CSV (ou dépose le .zip)'); return; }
-      let l = [];
-      tables.forEach(t => { l = l.concat(lignesDepuisExportTikTok_(t.csv)); });
-      lignes = lignes.concat(l);
+      let l = [], c = [];
+      tables.forEach(t => { const r = lireExportTikTok_(t.csv); l = l.concat(r.lignes); c = c.concat(r.contenus); });
+      lignes = lignes.concat(l); contenus = contenus.concat(c);
       ranger_(fichier, dossier);
-      journal_('Import TikTok', 'OK', l.length, nom);
+      journal_('Import TikTok', 'OK', l.length + c.length, nom + (c.length ? ' (' + c.length + ' vidéos)' : ''));
     } catch (e) {
       journal_('Import TikTok', 'Erreur', 0, nom + ' : ' + e.message);
     }
   });
+  if (contenus.length) ecrireContenus_(contenus);
   return lignes;
 }
 
-/** Lit un CSV TikTok Studio (Overview, FollowerHistory ou Content), en anglais ou en français. */
-function lignesDepuisExportTikTok_(csv) {
-  const rows = Utilities.parseCsv(String(csv).replace(/^﻿/, ''));
-  if (rows.length < 2) return [];
+/* Compatibilité : renvoie seulement les lignes Flux_auto */
+function lignesDepuisExportTikTok_(csv) { return lireExportTikTok_(csv).lignes; }
+
+/**
+ * Lit un CSV TikTok Studio, en anglais ou en français :
+ *   Overview        Date, Video Views, Profile Views, Likes, Comments, Shares
+ *   FollowerHistory Date, Followers, Difference in followers from previous day
+ *   Viewers         Date, Total Viewers, New Viewers, Returning Viewers
+ *   Content         Time, Video title, Video link, Post time, Total likes/comments/shares/views
+ * Les dates n'ont pas d'année ("14 octobre") : on la déduit en remontant le fichier depuis la dernière ligne.
+ */
+function lireExportTikTok_(csv) {
+  const rows = Utilities.parseCsv(String(csv).replace(/^﻿/, '')).filter(r => r.some(c => String(c).trim() !== ''));
+  const vide = { lignes: [], contenus: [] };
+  if (rows.length < 2) return vide;
   const h = rows[0].map(normaliser_);
   const col = (...motifs) => h.findIndex(x => motifs.some(m => m.test(x)));
+  const corps = rows.slice(1);
+  const num = (r, c) => { if (c < 0) return null; const t = String(r[c]).replace(/\s/g, '').replace(',', '.'); if (t === '' || /undefined|null|-/.test(t) && isNaN(Number(t))) return null; const v = Number(t); return isNaN(v) ? null : v; };
 
-  const cDatePub = col(/post time|date de publication|heure de publication|publie/);
-  const cDate = cDatePub >= 0 ? -1 : col(/^date$|^jour$|^date\b/);
-  const out = [];
-
-  // Fichier "Content" : une ligne par vidéo -> nombre de publications par jour
-  if (cDatePub >= 0) {
-    const parJour = {};
-    rows.slice(1).forEach(r => { const d = texteDate_(r[cDatePub]); if (d) parJour[d] = (parJour[d] || 0) + 1; });
-    Object.keys(parJour).forEach(d => out.push([d, 'tt_publications', parJour[d], SOURCES.export]));
-    return out;
+  // ---- Content : une ligne par vidéo -> onglet Contenus
+  const cLien = col(/video link|lien/), cPub = col(/post time|date de publication|publie/);
+  if (cLien >= 0 && cPub >= 0) {
+    const cTitre = col(/video title|titre/), cReleve = col(/^time$|^date$/);
+    const cV = col(/total views|vues/), cL = col(/total likes|j.aime/), cC = col(/total comments|commentaires/), cS = col(/total shares|partages/);
+    const releve = texteDate_(corps[0][cReleve]) || jour_(0);
+    return { lignes: [], contenus: corps.filter(r => r[cLien]).map(r => ({
+      plateforme: 'TikTok', publie: texteDate_(r[cPub]), titre: String(r[cTitre] || '').trim(), lien: String(r[cLien]).trim(),
+      vues: num(r, cV), likes: num(r, cL), commentaires: num(r, cC), partages: num(r, cS), enregistrements: null, releve: releve, source: SOURCES.export,
+    })) };
   }
-  if (cDate < 0) return [];
 
-  const cVues = col(/video views|vues de(s)? video|vues video/);
+  const cDate = col(/^date$|^jour$/);
+  if (cDate < 0) return vide;
+  const dates = datesSequentielles_(corps.map(r => r[cDate]));
+  const out = [];
+  const add = (d, code, v) => { if (d && v !== null) out.push([d, code, v, SOURCES.export]); };
+
+  const cVues = col(/^video views$|vues de(s)? video|vues video/);
   const cProfil = col(/profile views|vues du profil|visites du profil/);
-  const cLikes = col(/^likes?$|j.aime/);
-  const cComm = col(/^comments?$|commentaires?/);
-  const cPart = col(/^shares?$|partages?/);
-  const cDiff = col(/difference|nouveaux abonnes|abonnes gagnes|variation/);
-  const cAbo = h.findIndex((x, i) => i !== cDiff && /^followers$|^abonnes$|nombre d.abonnes|total followers/.test(x));
+  const cLikes = col(/^likes?$|j.aime/), cComm = col(/^comments?$|commentaires?/), cPart = col(/^shares?$|partages?/);
+  const cAbo = col(/^followers$|^abonnes$|nombre d.abonnes/);
+  const cTot = col(/total viewers|spectateurs total|^spectateurs$/), cNew = col(/new viewers|nouveaux spectateurs/), cRet = col(/returning viewers|spectateurs (recurrents|fideles|reguliers)/);
 
-  rows.slice(1).forEach(r => {
-    const d = texteDate_(r[cDate]);
-    if (!d) return;
-    const n = c => { if (c < 0) return null; const v = Number(String(r[c]).replace(/\s/g, '').replace(',', '.')); return isNaN(v) ? null : v; };
-    const add = (code, v) => { if (v !== null) out.push([d, code, v, SOURCES.export]); };
-    add('tt_vues', n(cVues));
-    add('tt_visites_profil', n(cProfil));
-    const inter = [n(cLikes), n(cComm), n(cPart)];
-    if (inter.some(v => v !== null)) add('tt_interactions', inter.reduce((s, v) => s + (v || 0), 0));
-    add('tt_abonnes', n(cAbo));
-    add('tt_nouveaux', n(cDiff));
+  // On ignore les mois d'avant la première activité (compte pas encore lancé), en gardant le mois entier de la première activité
+  const actif = corps.map(r => [cVues, cProfil, cLikes, cTot, cAbo].some(c => (num(r, c) || 0) > 0));
+  const premier = actif.indexOf(true);
+  if (premier < 0) return vide;
+  const moisDebut = String(dates[premier] || '').slice(0, 7);
+  const debut = Math.max(0, dates.findIndex(d => d && d.slice(0, 7) >= moisDebut));
+
+  corps.forEach((r, i) => {
+    if (i < debut) return;
+    const d = dates[i];
+    if (cVues >= 0) {
+      add(d, 'tt_vues', num(r, cVues));
+      add(d, 'tt_visites_profil', num(r, cProfil));
+      const inter = [num(r, cLikes), num(r, cComm), num(r, cPart)];
+      if (inter.some(v => v !== null)) add(d, 'tt_interactions', inter.reduce((s, v) => s + (v || 0), 0));
+    }
+    // Total d'abonnés ; les abonnés gagnés sont recalculés à partir des totaux (la colonne "Difference" de TikTok est décalée d'un jour)
+    if (cAbo >= 0) add(d, 'tt_abonnes', num(r, cAbo));
+    if (cTot >= 0 && num(r, cTot) !== null) { // jour encore incomplet ("undefined") : ignoré
+      add(d, 'tt_spectateurs', num(r, cTot));
+      add(d, 'tt_spectateurs_nouveaux', num(r, cNew));
+      add(d, 'tt_spectateurs_fideles', num(r, cRet));
+    }
   });
+  return { lignes: out, contenus: [] };
+}
+
+/** "14 octobre" ... "13 octobre" : la dernière date est la plus récente non future, on remonte en reculant d'un an à chaque passage de janvier à décembre. */
+function datesSequentielles_(valeurs) {
+  const out = new Array(valeurs.length).fill(null);
+  let annee = null, suivant = null;
+  for (let i = valeurs.length - 1; i >= 0; i--) {
+    const brut = String(valeurs[i] || '').trim();
+    if (/\d{4}/.test(brut)) { out[i] = texteDate_(brut); continue; }
+    const d = texteDate_(brut); // année déduite : la plus récente qui n'est pas dans le futur
+    if (!d) continue;
+    const md = d.slice(5);
+    if (annee === null) annee = Number(d.slice(0, 4));
+    else if (md > suivant) annee--;
+    out[i] = annee + '-' + md;
+    suivant = md;
+  }
   return out;
 }
+
+/* Onglet Contenus : une ligne par publication, mise à jour à chaque relevé (clé = lien) */
+const CONTENUS_ENTETE = ['Plateforme', 'Publié le', 'Titre', 'Lien', 'Vues', "J'aime", 'Commentaires', 'Partages', 'Enregistrements', 'Relevé le', 'Source'];
+function ecrireContenus_(liste) {
+  const sh = feuille_(AUTO.CONTENUS, CONTENUS_ENTETE);
+  const data = sh.getDataRange().getValues().slice(1).filter(r => r[3]);
+  const index = {};
+  data.forEach((r, i) => { index[String(r[3])] = i; });
+  liste.forEach(c => {
+    if (!c.lien) return;
+    const ligne = [c.plateforme, c.publie || '', String(c.titre || '').slice(0, 500), c.lien, val_(c.vues), val_(c.likes), val_(c.commentaires), val_(c.partages), val_(c.enregistrements), c.releve, c.source];
+    if (c.lien in index) data[index[c.lien]] = ligne; else { index[c.lien] = data.length; data.push(ligne); }
+  });
+  data.sort((a, b) => (String(texteDate_(b[1]) || '') > String(texteDate_(a[1]) || '') ? 1 : -1));
+  data.forEach(r => { r[1] = texteDate_(r[1]) || ''; r[9] = texteDate_(r[9]) || ''; });
+  sh.getRange(2, 1, Math.max(sh.getMaxRows() - 1, 1), CONTENUS_ENTETE.length).clearContent();
+  if (data.length) {
+    sh.getRange(2, 2, data.length, 1).setNumberFormat('@');
+    sh.getRange(2, 10, data.length, 1).setNumberFormat('@');
+    sh.getRange(2, 1, data.length, CONTENUS_ENTETE.length).setValues(data);
+  }
+  return data.length;
+}
+function val_(v) { return v === null || v === undefined || isNaN(v) ? '' : Number(v); }
 
 function ranger_(fichier, dossier) {
   const it = dossier.getFoldersByName('Importés');

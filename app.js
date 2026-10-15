@@ -20,7 +20,7 @@
 const CONFIG_BROKEN = typeof CONFIG === 'undefined';
 if (CONFIG_BROKEN) {
   window.CONFIG = {
-    SHEET_POA_CSV: null, SHEET_FLUX_AUTO_CSV: null, ANNEE: 2026, PRIX_ABONNEMENT: 50, AUTO_REFRESH_MINUTES: 0,
+    SHEET_POA_CSV: null, SHEET_FLUX_AUTO_CSV: null, SHEET_AUDIENCE_CSV: null, SHEET_CONTENUS_CSV: null, ANNEE: 2026, PRIX_ABONNEMENT: 50, AUTO_REFRESH_MINUTES: 0,
     OBJECTIFS: [
       { code: 'churn', label: 'Churn mensuel', cible: 0.06, sens: 'max', format: 'pct' },
       { code: 'nps', label: 'NPS', cible: 40, sens: 'min', format: 'num' },
@@ -56,6 +56,9 @@ const METRICS = [
     code: `${n.key}_${f.key}`, sec: 'rs', net: n.key, field: f.key,
     label: `${f.label} ${n.label}`, kind: f.kind, fmt: 'int',
   }))),
+  { code: 'tt_spectateurs',          sec: 'rs', net: 'tt', label: 'Spectateurs uniques TikTok (somme des jours)', kind: 'flux', fmt: 'int' },
+  { code: 'tt_spectateurs_nouveaux', sec: 'rs', net: 'tt', label: 'Nouveaux spectateurs TikTok',  kind: 'flux', fmt: 'int' },
+  { code: 'tt_spectateurs_fideles',  sec: 'rs', net: 'tt', label: 'Spectateurs fidèles TikTok',   kind: 'flux', fmt: 'int' },
   { code: 'rs_telechargements', sec: 'rs',   label: 'Téléchargements (réseaux)',     kind: 'flux', fmt: 'int' },
   { code: 'rs_abonnements',     sec: 'rs',   label: 'Abonnements (réseaux)',         kind: 'flux', fmt: 'int' },
 
@@ -192,7 +195,7 @@ async function fetchCsv(url) {
 }
 
 async function loadData() {
-  Object.assign(STATE, { values: {}, daily: {}, weekly: {}, days: [], weeks: [], autoLast: {}, autoRows: 0, autoSrc: {}, partial: [], unknownCodes: new Set(), campaigns: [], tests: [], warnings: [], fluxError: null });
+  Object.assign(STATE, { audience: [], contenus: [], values: {}, daily: {}, weekly: {}, days: [], weeks: [], autoLast: {}, autoRows: 0, autoSrc: {}, partial: [], unknownCodes: new Set(), campaigns: [], tests: [], warnings: [], fluxError: null });
   let error = null;
 
   if (CONFIG.SHEET_POA_CSV) {
@@ -212,10 +215,43 @@ async function loadData() {
     catch (e) { console.error('Onglet Flux_auto :', e); STATE.fluxError = e; }
   }
 
+  // Onglets complémentaires : répartitions d'audience et statistiques par publication
+  for (const [url, fn, nom] of [[CONFIG.SHEET_AUDIENCE_CSV, parseAudience, 'Audience'], [CONFIG.SHEET_CONTENUS_CSV, parseContenus, 'Contenus']]) {
+    if (!url) continue;
+    try { fn(Papa.parse(await fetchCsv(url), { header: true, skipEmptyLines: true }).data); }
+    catch (e) { console.error(`Onglet ${nom} :`, e); }
+  }
+
   deriveNewFollowers();
   computeMonths();
   computeDays();
   return error;
+}
+
+/* ---------- Onglets Audience et Contenus ---------- */
+const pickCol = (r, names) => { for (const k of Object.keys(r)) if (names.includes(norm(k))) return r[k]; return undefined; };
+const netOf = p => { const s = norm(p); return (NETS.find(n => n.re.test(s)) || {}).key || null; };
+function parsePart(raw) { // 0,83 / 83% / 83 -> 0.83
+  const s = String(raw ?? '').replace(/\s/g, '').replace(',', '.');
+  if (!s) return null;
+  const v = parseFloat(s.replace('%', ''));
+  if (isNaN(v)) return null;
+  return s.includes('%') || v > 1 ? v / 100 : v;
+}
+function parseAudience(rows) {
+  STATE.audience = rows.map(r => ({
+    d: parseDate(pickCol(r, ['date'])), net: netOf(pickCol(r, ['plateforme', 'reseau'])),
+    dim: String(pickCol(r, ['dimension']) ?? '').trim(), seg: String(pickCol(r, ['segment']) ?? '').trim(),
+    v: parsePart(pickCol(r, ['valeur', 'value'])), periode: String(pickCol(r, ['periode']) ?? '').trim(),
+  })).filter(x => x.d && x.net && x.dim && x.seg && x.v !== null);
+}
+function parseContenus(rows) {
+  const n = v => { const x = parseFloat(String(v ?? '').replace(/\s/g, '').replace(',', '.')); return isNaN(x) ? null : x; };
+  STATE.contenus = rows.map(r => ({
+    net: netOf(pickCol(r, ['plateforme'])), pub: parseDate(pickCol(r, ['publie le', 'date'])), titre: String(pickCol(r, ['titre']) ?? '').trim(),
+    lien: String(pickCol(r, ['lien']) ?? '').trim(), vues: n(pickCol(r, ['vues'])), likes: n(pickCol(r, ["j'aime", 'likes'])),
+    comm: n(pickCol(r, ['commentaires'])), part: n(pickCol(r, ['partages'])), enr: n(pickCol(r, ['enregistrements'])), releve: parseDate(pickCol(r, ['releve le'])),
+  })).filter(x => x.net && x.lien);
 }
 
 function classifySection(label) {
@@ -434,6 +470,18 @@ function computeDays() {
   // Les jours vont jusqu'à aujourd'hui (même sans chiffre encore) pour pouvoir les choisir
   for (let k = sorted[0]; k <= today; k = addDays(k, 1)) STATE.days.push(k);
   for (let w = mondayOf(STATE.days[0]); w <= STATE.days[STATE.days.length - 1]; w = addDays(w, 7)) STATE.weeks.push(w);
+  // Publications par jour déduites de l'onglet Contenus quand la plateforme ne les fournit pas (TikTok avant l'API)
+  for (const n of NETS) {
+    const code = `${n.key}_publications`, posts = STATE.contenus.filter(c => c.net === n.key && c.pub);
+    if (STATE.daily[code] || !posts.length) continue;
+    const first = posts.map(c => ymd(c.pub)).sort()[0], parJour = {};
+    posts.forEach(c => { const k = ymd(c.pub); parJour[k] = (parJour[k] || 0) + 1; });
+    STATE.daily[code] = Object.fromEntries(STATE.days.filter(k => k >= first && k <= (STATE.lastData || k)).map(k => [k, parJour[k] || 0]));
+    // et par mois, seulement là où rien n'est saisi
+    const parMois = {};
+    Object.entries(STATE.daily[code]).forEach(([k, v]) => { parMois[k.slice(0, 7)] = (parMois[k.slice(0, 7)] || 0) + v; });
+    Object.entries(parMois).forEach(([m, v]) => { if (valM(code, m) === null) setValue(code, m, v, 'calcul'); });
+  }
   for (const [code, byDay] of Object.entries(STATE.daily)) {
     const kind = BY_CODE[code].kind, groups = {};
     Object.keys(byDay).sort().forEach(k => (groups[mondayOf(k)] ||= []).push(byDay[k]));
@@ -763,6 +811,10 @@ function renderReseaux() {
   drawChart('pubs', { type: 'bar', data: { labels, datasets: aud.map(([f, l, c]) => fbar(l, series(code(f)), c)) }, options: commonOpts(fint) },
     hasAny(aud.map(([f]) => code(f))), `Aucune donnée d'audience ${n.label}`, src);
 
+  renderAudience(n);
+  renderSpectateurs(n, vk);
+  renderPosts(n);
+
   // Détail : une ligne par mois, pour ce réseau seulement
   $('t-net-title').textContent = `Détail par mois · ${n.label}`;
   const fields = ['publications', 'vues', 'interactions', 'eng', 'visites_profil', 'clics_lien', 'nouveaux', 'abonnes'];
@@ -777,6 +829,89 @@ function renderReseaux() {
        <p class="note">Taux d'engagement = interactions ÷ vues, affiché à partir de ${MIN_VUES_ENGAGEMENT} vues. Les ${keyHead().toLowerCase()}s sans aucune activité sont masqués.</p>`
     : emptyState(`Aucune donnée ${n.label} sur la période`, 'Les lignes apparaîtront dès la première saisie');
 }
+/* Fin de la période choisie (jour), pour lire le relevé d'audience valable à cette date */
+function periodEnd() {
+  if (STATE.vue === 'mois') { const m = periodMonths(); const last = m[m.length - 1]; if (!last) return null; const [y, mo] = last.split('-').map(Number); return ymd(new Date(y, mo, 0)); }
+  const d = periodDays(); return d[d.length - 1] || null;
+}
+const DIM_ORDER = ['genre', 'age', 'source de trafic', 'recherche', 'pays', 'ville'];
+function renderAudience(n) {
+  const fin = periodEnd();
+  const rows = STATE.audience.filter(x => x.net === n.key);
+  const dims = [...new Set(rows.map(x => x.dim))].sort((a, b) => {
+    const ia = DIM_ORDER.findIndex(k => norm(a).startsWith(k)), ib = DIM_ORDER.findIndex(k => norm(b).startsWith(k));
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  if (!dims.length) {
+    $('hint-audience').textContent = '';
+    $('audience').innerHTML = emptyState(`Pas encore de données d'audience ${n.label}`,
+      n.key === 'tt' ? "Renseigne l'onglet Audience du Sheet une fois par mois (genre, âge, sources de trafic, recherches)"
+        : "Meta fournit ces répartitions à partir de 100 abonnés ; en attendant, tu peux les saisir dans l'onglet Audience");
+    return;
+  }
+  let dernier = null;
+  const blocs = dims.map(dim => {
+    const parDate = {};
+    rows.filter(x => x.dim === dim).forEach(x => { (parDate[ymd(x.d)] ||= []).push(x); });
+    const dates = Object.keys(parDate).sort();
+    const choix = [...dates].reverse().find(d => !fin || d <= fin) || dates[dates.length - 1];
+    const prec = dates[dates.indexOf(choix) - 1];
+    if (!dernier || choix > dernier) dernier = choix;
+    const prev = Object.fromEntries((parDate[prec] || []).map(x => [norm(x.seg), x.v]));
+    const segs = parDate[choix].slice().sort((a, b) => b.v - a.v);
+    const max = Math.max(...segs.map(x => x.v), 0.0001);
+    const periode = segs[0].periode ? ` · ${escapeHtml(segs[0].periode)}` : '';
+    return `<div class="aud-block"><div class="aud-title">${escapeHtml(dim)}<span>${dayShort(choix)}${periode}</span></div>
+      ${segs.slice(0, 6).map(x => {
+        const p = prev[norm(x.seg)];
+        const delta = p === undefined ? '' : (() => { const d = (x.v - p) * 100; return Math.abs(d) < 0.5 ? '' : `<em class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${fr(d, 0)} pt</em>`; })();
+        return `<div class="aud-row"><span class="aud-seg" title="${escapeHtml(x.seg)}">${escapeHtml(x.seg)}</span>
+          <span class="aud-bar"><i style="width:${Math.max(x.v / max * 100, x.v > 0 ? 2 : 0)}%;background:${n.color}"></i></span>
+          <span class="aud-val">${fmt(x.v, 'pct')}${delta}</span></div>`;
+      }).join('')}</div>`;
+  });
+  $('hint-audience').textContent = `Relevé du ${dayLabel(dernier)}`;
+  $('audience').innerHTML = `<div class="aud-grid">${blocs.join('')}</div>`;
+}
+
+function renderSpectateurs(n, vk) {
+  const codes = ['nouveaux', 'fideles'].map(f => `${n.key}_spectateurs_${f}`);
+  const has = BY_CODE[codes[0]] && hasAny(codes);
+  drawChart('spect', { type: 'bar', data: { labels: vk.map(keyShort), datasets: [
+      fbar('Nouveaux', series(codes[0]), n.color, { stack: 's' }), fbar('Fidèles (déjà venus)', series(codes[1]), C.sageDk, { stack: 's' })] },
+    options: commonOpts(fint, true) }, has, `Pas de données de spectateurs ${n.label}`,
+    n.key === 'tt' ? 'Dépose l’export « Spectateurs » de TikTok Studio dans le dossier d’import' : 'Donnée fournie seulement par TikTok pour l’instant');
+  const months = periodMonths();
+  const tot = has ? agg(`${n.key}_spectateurs`, months) : null, fid = has ? agg(codes[1], months) : null;
+  $('note-spect').textContent = tot ? `${fmt(ratio(fid, tot), 'pct')} de spectateurs fidèles sur la période (${fmt(fid)} sur ${fmt(tot)}). Plus cette part monte, plus une communauté se forme.` : '';
+}
+
+function renderPosts(n) {
+  const all = STATE.contenus.filter(c => c.net === n.key && c.pub);
+  if (!all.length) {
+    $('hint-posts').textContent = '';
+    $('t-posts').innerHTML = emptyState(`Pas encore de statistiques par publication ${n.label}`,
+      n.key === 'tt' ? 'Dépose l’export « Contenu » de TikTok Studio dans le dossier d’import' : n.key === 'ig' ? 'Elles arrivent avec la prochaine extraction automatique' : 'Pas encore relevées pour Facebook');
+    return;
+  }
+  const jours = STATE.vue === 'mois' ? null : new Set(periodDays());
+  const mois = STATE.vue === 'mois' ? new Set(periodMonths()) : null;
+  const dans = c => (mois ? mois.has(ymd(c.pub).slice(0, 7)) : jours.has(ymd(c.pub)));
+  let liste = all.filter(dans).sort((a, b) => (b.vues ?? -1) - (a.vues ?? -1));
+  let hint = `${liste.length} publication${liste.length > 1 ? 's' : ''} sur la période, classées par vues`;
+  if (!liste.length) { liste = all.slice().sort((a, b) => b.pub - a.pub).slice(0, 5); hint = 'Aucune publication sur la période : voici les 5 dernières'; }
+  const releve = all.map(c => c.releve).filter(Boolean).sort((a, b) => b - a)[0];
+  const eng = c => (c.vues ? ratio(sum([c.likes, c.comm, c.part, c.enr]), c.vues) : null);
+  const short = t => { const s = t.replace(/\s+/g, ' ').trim(); return s.length > 90 ? s.slice(0, 88) + '…' : s || '(sans titre)'; };
+  $('hint-posts').textContent = hint;
+  $('t-posts').innerHTML = `<table class="compact"><thead><tr><th>Publiée le</th><th>Publication</th><th class="num">Vues</th><th class="num">J'aime</th>
+      <th class="num">Comm.</th><th class="num">Partages</th><th class="num">Enreg.</th><th class="num">Engagement</th></tr></thead><tbody>
+    ${liste.slice(0, 15).map(c => `<tr><td>${dayLabel(ymd(c.pub))}</td>
+      <td class="post-title"><a href="${escapeHtml(c.lien)}" target="_blank" rel="noopener">${escapeHtml(short(c.titre))}</a></td>
+      ${cell(c.vues)}${cell(c.likes)}${cell(c.comm)}${cell(c.part)}${cell(c.enr)}<td class="num">${eng(c) === null ? '·' : fmt(eng(c), 'pct')}</td></tr>`).join('')}
+    </tbody></table><p class="note">Totaux cumulés depuis la publication${releve ? `, relevés le ${dayLabel(ymd(releve))}` : ''}. Engagement = (j'aime + commentaires + partages + enregistrements) ÷ vues.</p>`;
+}
+
 const cell = (v, f = 'int') => `<td class="num ${v === null ? 'na' : ''}">${v === null ? '·' : fmt(v, f)}</td>`;
 
 /* ============================================================

@@ -366,3 +366,19 @@ tr.row-focus td { background: #F4F6EE; font-weight: 600; }
   .cal-month { width: 100%; }
   .cal-row { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 }
+
+/* ============ AUDIENCE ============ */
+.aud-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+.aud-title { font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 8px; display: flex; justify-content: space-between; gap: 8px; }
+.aud-title span { font-weight: 400; color: var(--ink-3); white-space: nowrap; }
+.aud-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12.5px; }
+.aud-seg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.aud-bar { height: 8px; background: var(--line-soft); border-radius: 4px; overflow: hidden; }
+.aud-bar i { display: block; height: 100%; border-radius: 4px; }
+.aud-val { font-weight: 600; text-align: right; min-width: 44px; white-space: nowrap; }
+.aud-val em { font-style: normal; font-weight: 500; font-size: 11px; margin-left: 4px; }
+.aud-val em.up { color: #3B7A3B; } .aud-val em.down { color: var(--terracotta); }
+.post-title { max-width: 380px; }
+.post-title a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+.post-title a:hover { border-color: var(--sage); }
+@media (max-width: 520px) { .aud-grid { grid-template-columns: minmax(0, 1fr); } }

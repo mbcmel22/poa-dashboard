@@ -24,6 +24,11 @@ const CONFIG = {
   // Laisse null tant que l'automatisation n'est pas en place.
   SHEET_FLUX_AUTO_CSV: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR4m7HEuHmqlPy2hNxaKrCbwQaP8_d9vUsBXJtcZaPUZxSreC3c92HMdV-ojXd7M_NHR06DwOSd5cKa/pub?gid=276008607&single=true&output=csv',
 
+  // URL CSV des onglets "Audience" (répartitions) et "Contenus" (statistiques par publication)
+  // Laisse null tant qu'ils ne sont pas publiés.
+  SHEET_AUDIENCE_CSV: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR4m7HEuHmqlPy2hNxaKrCbwQaP8_d9vUsBXJtcZaPUZxSreC3c92HMdV-ojXd7M_NHR06DwOSd5cKa/pub?gid=92194363&single=true&output=csv',
+  SHEET_CONTENUS_CSV: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR4m7HEuHmqlPy2hNxaKrCbwQaP8_d9vUsBXJtcZaPUZxSreC3c92HMdV-ojXd7M_NHR06DwOSd5cKa/pub?gid=1323977159&single=true&output=csv',
+
   // Année des colonnes Janvier à Décembre de l'onglet POA
   ANNEE: 2026,
 

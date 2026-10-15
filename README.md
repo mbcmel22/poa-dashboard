@@ -5,7 +5,7 @@ Dashboard web aux couleurs de POA, branché sur le Google Sheet **Tableau de bor
 ## Les 5 pages
 
 1. **Vue d'ensemble** : vues, interactions, taux d'engagement et nouveaux abonnés sur la période, vues par réseau, objectifs business (churn, NPS, LTV / CAC), tunnel vues → visites du profil → clics → téléchargements → abonnements, meilleure campagne Meta.
-2. **Réseaux sociaux** : un onglet par réseau (Instagram, Facebook, TikTok). Pour le réseau choisi : 8 indicateurs, vues, interactions, taux d'engagement et audience par mois, puis le détail mois par mois.
+2. **Réseaux sociaux** : un onglet par réseau (Instagram, Facebook, TikTok). Pour le réseau choisi : 8 indicateurs, vues, interactions, taux d'engagement et audience par période, répartition de l'audience (genre, âge, sources de trafic, recherches), spectateurs nouveaux et fidèles, statistiques de chaque publication, puis le détail période par période.
 3. **Landing page** : visites, pages par visite, durée de session, taux de rebond, tunnel jusqu'à l'abonnement.
 4. **Publicité** : campagnes Meta Ads (coût par visite, par clic, par abonné), diffusion mensuelle, Google Ads.
 5. **Sources & automatisation** : état de chaque indicateur, son code, sa dernière valeur et son origine (Manuel / Auto).
