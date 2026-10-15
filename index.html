@@ -29,9 +29,21 @@
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg>
         <span>Vue d'ensemble</span>
       </a>
+      <a href="#reco" class="nav-item" data-page="reco">
+        <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3z"/></svg>
+        <span>Recommandations</span>
+      </a>
       <a href="#reseaux" class="nav-item" data-page="reseaux">
         <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
         <span>Réseaux sociaux</span>
+      </a>
+      <a href="#concurrents" class="nav-item" data-page="concurrents">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/></svg>
+        <span>Concurrents</span>
+      </a>
+      <a href="#veille" class="nav-item" data-page="veille">
+        <svg viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1.5"/></svg>
+        <span>Veille</span>
       </a>
       <a href="#landing" class="nav-item" data-page="landing">
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/></svg>
@@ -137,6 +149,11 @@
         </div>
       </section>
 
+      <!-- ============ PAGE : RECOMMANDATIONS ============ -->
+      <section class="page" id="page-reco" data-title="Recommandations" data-sub="Le brief de l’agent stratégique, les priorités et les contenus de la semaine">
+        <div id="intel-reco" class="intel-root"></div>
+      </section>
+
       <!-- ============ PAGE : RÉSEAUX ============ -->
       <section class="page" id="page-reseaux" data-title="Réseaux sociaux" data-sub="Un réseau à la fois, sur la période choisie">
         <div class="net-tabs" id="net-tabs" role="tablist" aria-label="Réseau"></div>
@@ -186,6 +203,16 @@
           <div class="card-head"><h2 id="t-net-title">Détail par mois</h2></div>
           <div class="table-wrap" id="t-efficacite"></div>
         </div>
+      </section>
+
+      <!-- ============ PAGE : CONCURRENTS ============ -->
+      <section class="page" id="page-concurrents" data-title="Concurrents" data-sub="Benchmark Instagram et TikTok, et ce qui marche chez eux">
+        <div id="intel-concurrents" class="intel-root"></div>
+      </section>
+
+      <!-- ============ PAGE : VEILLE ============ -->
+      <section class="page" id="page-veille" data-title="Veille" data-sub="Ce qui se dit de POA, des concurrents et du secteur">
+        <div id="intel-veille" class="intel-root"></div>
       </section>
 
       <!-- ============ PAGE : LANDING PAGE ============ -->
@@ -297,5 +324,6 @@
 <script src="demo-data.js"></script>
 <script src="app.js"></script>
 <script src="notes.js"></script>
+<script src="intel.js"></script>
 </body>
 </html>

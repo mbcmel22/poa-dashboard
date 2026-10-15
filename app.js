@@ -1054,9 +1054,10 @@ function renderSources() {
 /* ============================================================
    NAVIGATION, PÉRIODE, ORCHESTRATION
    ============================================================ */
-const PAGES = ['vue', 'reseaux', 'landing', 'pub', 'sources'];
+const PAGES = ['vue', 'reco', 'reseaux', 'concurrents', 'veille', 'landing', 'pub', 'sources'];
 
 function showPage(id) {
+  if (/^reco-/.test(id || '')) id = 'reco'; // ancres des e-mails (#reco-contenus)
   if (!PAGES.includes(id)) id = 'vue';
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === `page-${id}`));
   document.querySelectorAll('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.page === id));
@@ -1066,6 +1067,8 @@ function showPage(id) {
   $('page-sub').textContent = page.dataset.sub;
   document.title = `POA · ${title}`;
   requestAnimationFrame(() => Object.values(STATE.charts).forEach(c => { if (c.canvas.closest('.page.active')) c.resize(); }));
+  const lien = document.querySelector('.nav-item.active');
+  if (lien && window.innerWidth <= 900) lien.scrollIntoView({ block: 'nearest', inline: 'center' }); // menu horizontal sur mobile
 }
 
 function initPeriod() {
@@ -1123,7 +1126,7 @@ function renderPeriod() {
     chips = [[today, 'Aujourd’hui'], [addDays(today, -1), 'Hier']].map(([d, l]) => [`d:${d}`, l, STATE.day === d]);
     label = dayFull(STATE.day);
     hint = STATE.lastData && STATE.day > STATE.lastData
-      ? 'Pas encore de chiffres pour ce jour : ils arrivent le lendemain vers 7 h.'
+      ? 'Pas encore de chiffres pour ce jour : ils arrivent le lendemain vers 6 h.'
       : 'Comparé à la veille · graphiques : les 14 jours jusqu’au jour choisi';
   } else if (v === 'semaine') {
     const cette = mondayOf(today);
@@ -1286,6 +1289,7 @@ function renderAll() {
   document.querySelectorAll('[data-gran-hint]').forEach(el => { el.textContent = par + el.dataset.granHint; });
   renderVue(); renderReseaux(); renderLanding(); renderPub(); renderSources();
   if (typeof rendreNotes === 'function') rendreNotes();
+  if (typeof rendreIntel === 'function') rendreIntel();
 }
 
 function setStatus() {
@@ -1309,6 +1313,7 @@ async function refresh(manual = false) {
   const err = await loadData();
   initPeriod(); renderAll(); setStatus();
   if (typeof chargerCommentaires === 'function') chargerCommentaires(); // notes de l'équipe (sans bloquer l'affichage)
+  if (typeof chargerIntel === 'function') chargerIntel(); // concurrents, veille, recommandations
   $('last-load').textContent = `Données chargées le ${new Date().toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })}`;
   btn.classList.remove('loading'); btn.disabled = false;
   if (manual) toast(err ? 'Impossible de lire le Google Sheet, données de démo affichées' : (STATE.mode === 'live' ? 'Données mises à jour' : 'Mode démo rechargé'));

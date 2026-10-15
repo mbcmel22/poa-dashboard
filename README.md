@@ -2,13 +2,16 @@
 
 Dashboard web aux couleurs de POA, branché sur le Google Sheet **Tableau de bord KPI POA**. Site 100 % statique : HTML, CSS, JavaScript, Chart.js et PapaParse inclus en local. Aucun build, aucune installation.
 
-## Les 5 pages
+## Les 8 pages
 
 1. **Vue d'ensemble** : vues, interactions, taux d'engagement et nouveaux abonnés sur la période, vues par réseau, objectifs business (churn, NPS, LTV / CAC), tunnel vues → visites du profil → clics → téléchargements → abonnements, meilleure campagne Meta.
-2. **Réseaux sociaux** : un onglet par réseau (Instagram, Facebook, TikTok). Pour le réseau choisi : 8 indicateurs, vues, interactions, taux d'engagement et audience par période, répartition de l'audience (genre, âge, sources de trafic, recherches), spectateurs nouveaux et fidèles, statistiques de chaque publication, puis le détail période par période.
-3. **Landing page** : visites, pages par visite, durée de session, taux de rebond, tunnel jusqu'à l'abonnement.
-4. **Publicité** : campagnes Meta Ads (coût par visite, par clic, par abonné), diffusion mensuelle, Google Ads.
-5. **Sources & automatisation** : état de chaque indicateur, son code, sa dernière valeur et son origine (Manuel / Auto).
+2. **Recommandations** : le brief de l'agent stratégique (chaque matin vers 8 h, aussi par e-mail), les priorités à adopter ou écarter, la matrice impact et effort, les signaux du moment recalculés sur la période, les 3 contenus de la semaine (agent du lundi) et l'historique.
+3. **Réseaux sociaux** : un onglet par réseau (Instagram, Facebook, TikTok). Pour le réseau choisi : 8 indicateurs, vues, interactions, taux d'engagement et audience par période, répartition de l'audience (genre, âge, sources de trafic, recherches), spectateurs nouveaux et fidèles, statistiques de chaque publication, puis le détail période par période.
+4. **Concurrents** : benchmark Instagram et TikTok (POA compris, même méthode), évolution des abonnés en base 100, carte de positionnement, publications qui surperforment, formats qui marchent.
+5. **Veille** : mentions de POA et tonalité, part de voix, sujets qui montent, fil d'actualité marque, concurrents et secteur.
+6. **Landing page** : visites, pages par visite, durée de session, taux de rebond, tunnel jusqu'à l'abonnement.
+7. **Publicité** : campagnes Meta Ads (coût par visite, par clic, par abonné), diffusion mensuelle, Google Ads.
+8. **Sources & automatisation** : état de chaque indicateur, son code, sa dernière valeur et son origine (Manuel / Auto).
 
 Le filtre **Période** (en haut) filtre tout le dashboard et propose quatre vues :
 - **Jour** : « Aujourd'hui », « Hier » ou n'importe quel jour dans le calendrier. Les tuiles comparent à la veille ; les graphiques montrent les 14 jours jusqu'au jour choisi, mis en avant.
@@ -16,7 +19,7 @@ Le filtre **Période** (en haut) filtre tout le dashboard et propose quatre vues
 - **Mois** : un clic sur un mois depuis « Tout » l'affiche seul ; chaque clic suivant ajoute ou retire un mois ; Maj + clic sélectionne une plage.
 - **Personnalisé** : raccourcis (7, 30 ou 90 derniers jours, ce mois-ci, mois dernier, tout) ou une période choisie en deux clics dans le calendrier (premier jour, puis dernier jour).
 
-Les vues Jour, Semaine et Personnalisé utilisent le détail quotidien de l'onglet Flux_auto (réseaux sociaux, Meta Ads). Les chiffres saisis au mois (landing page, blocs de campagne) restent en vue Mois. Dans le calendrier, un point signale les jours qui ont des chiffres ; ceux d'une journée arrivent le lendemain vers 7 h.
+Les vues Jour, Semaine et Personnalisé utilisent le détail quotidien de l'onglet Flux_auto (réseaux sociaux, Meta Ads). Les chiffres saisis au mois (landing page, blocs de campagne) restent en vue Mois. Dans le calendrier, un point signale les jours qui ont des chiffres ; ceux d'une journée arrivent le lendemain vers 6 h.
 
 Les tuiles affichent le total de la période et, quand elle est continue, le comparent à la période précédente de même durée.
 
@@ -27,6 +30,7 @@ Tous les fichiers sont à la racine (plus simple pour l'envoi sur GitHub par le 
 ```
 index.html, styles.css, app.js     le dashboard
 notes.js                           notes partagées (commentaires) et export PDF
+intel.js                           pages Recommandations, Concurrents et Veille
 config.js                          URLs Google Sheets et réglages (à remplir)
 demo-data.js                       copie de l'onglet POA pour le mode démo
 *.min.js                           Chart.js, plugin annotation, PapaParse
@@ -37,6 +41,7 @@ favicon.ico, favicon-32.png        icône d'onglet (mascotte sur rond vert)
 apple-touch-icon.png               icône sur l'écran d'accueil du téléphone
 GUIDE_AUTOMATISATION.md            mise en route pas à pas de l'extraction automatique
 poa-automatisation.gs              script Apps Script : Instagram, Facebook, Meta Ads, TikTok
+poa-veille.gs                      second fichier Apps Script : concurrents (Apify), veille, briefs des agents, e-mails
 tiktok-callback.html               page de retour de l'autorisation TikTok (URL de redirection)
 modele_Flux_auto.csv               exemple de l'onglet Flux_auto
 vercel.json                        en-têtes de sécurité, site non indexé

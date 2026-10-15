@@ -22,7 +22,7 @@ Meta Ads, au niveau du compte publicitaire et par jour : **budget dépensé**, *
 
 ```
 Meta Graph API ──┐
-TikTok API ──────┼──► Apps Script (chaque jour vers 7 h) ──► onglet Flux_auto ──► CSV publié ──► dashboard
+TikTok API ──────┼──► Apps Script (chaque jour vers 6 h) ──► onglet Flux_auto ──► CSV publié ──► dashboard
 Exports TikTok ──┘         relit les 3 derniers jours            Date | Code | Valeur | Source
 (dossier Drive)            journal + alerte e-mail
 ```
@@ -170,6 +170,51 @@ Bouton **Exporter PDF** : choisis les sections (synthèse, chaque réseau, landi
 
 Le rapport s'ouvre sur une page de garde (période, date, état des sources), puis la synthèse avec les faits marquants, puis une section par réseau avec ses propres notes. Les blocs sans donnée sont retirés automatiquement, et une section vide est résumée en une ligne.
 
+## Partie 5 : concurrents, veille et agents de recommandation
+
+### Ce que ça fait
+```
+Apify (Instagram, TikTok) ──┐                                   ┌──► page Concurrents
+Google News (sans clé) ─────┼──► Veille.gs (vers 5 h) ──► onglets ┼──► page Veille
+Flux_auto, Contenus, notes ─┘                                    └──► digest ──► agent stratégique (7 h 54)
+                                                                                 agent contenus (lundi 8 h 19)
+                                                                                      │
+                                         e-mail + page Recommandations ◄── brief ◄────┘
+```
+- **Concurrents** : chaque jour, les comptes Instagram de l'onglet `Concurrents_config` sont relevés (abonnés et 12 dernières publications). Le lundi et le jeudi, c'est le tour des comptes TikTok (10 dernières vidéos). **POA est relevé avec la même méthode**, pour comparer à armes égales.
+- **Veille** : Google News, chaque matin, sur les requêtes de `Veille_config` (marque, concurrents, secteur), plus une recherche TikTok « poa food ». Une mention de « POA » n'est gardée que si elle parle de food ou d'appli : le sigle POA sert aussi ailleurs.
+- **Agent stratégique** (chaque jour à 7 h 54) : il lit une synthèse des données (le « digest »), croise POA, concurrents, veille et notes, puis publie 3 à 5 recommandations. Le brief arrive par e-mail vers 8 h et s'affiche dans **Recommandations**.
+- **Agent contenus** (lundi 8 h 19) : 3 contenus prêts à tourner (accroche, déroulé, légende, hashtags, jour conseillé), inspirés de ce qui marche chez POA et chez les concurrents.
+- **Filet de sécurité** (vers 9 h) : si l'agent n'a rien publié, le script envoie un brief automatique construit avec des règles simples.
+- **Boucle d'apprentissage** : chaque recommandation se valide (**Adopter**, qui crée une décision « à faire » dans les notes) ou s'écarte. L'agent relit ces choix le lendemain : il ne repropose pas une idée écartée et suit l'effet de celles adoptées.
+
+### Mise en route (20 minutes, une seule fois)
+1. **Apify** : crée un compte sur apify.com (offre gratuite : 5 $ de crédit par mois). Ouvre **Settings > API & Integrations**, puis copie le **Personal API token**.
+2. **Apps Script** (Extensions > Apps Script) :
+   - recolle `poa-automatisation.gs` dans `Code.gs` (Ctrl+A, Ctrl+V, Ctrl+S) ;
+   - **Fichiers > + > Script**, nomme-le `Veille`, colle `poa-veille.gs`, Ctrl+S.
+3. **Propriétés du script** (roue dentée > Propriétés du script > Ajouter) :
+   - `APIFY_TOKEN` = le jeton Apify ;
+   - `AGENT_KEY` = `POA-AG-VJVSGDSMBN6PUD5H` (la clé des deux agents planifiés) ;
+   - facultatif : `EMAILS_BRIEF` = les adresses qui reçoivent le brief, séparées par des virgules (par défaut : toi).
+4. Exécute **configurerVeille**. Les onglets sont créés et les déclencheurs sont installés (veille vers 5 h, extraction vers 6 h, filet de sécurité vers 9 h). Autorise si Google le demande.
+5. Ouvre l'onglet **Concurrents_config** et vérifie les noms de comptes (colonnes Instagram et TikTok, sans @). Pour chaque concurrent, ouvre son profil et recopie l'identifiant exact. Tu peux ajouter des lignes (type `concurrent` ou `inspiration`) ou mettre `non` dans Actif pour en suspendre une.
+6. Exécute **testerVeille**. Environ 5 minutes plus tard, les onglets `Concurrents` et `Concurrents_posts` se remplissent. La colonne **État** de `Concurrents_config` indique `OK` ou `Introuvable`.
+7. Exécute **envoyerBriefDeTest** pour voir le rendu de l'e-mail.
+8. **Déployer > Gérer les déploiements** > crayon > Version : **Nouvelle version** > Déployer. L'URL reste la même, rien à changer dans `config.js`.
+9. Envoie sur GitHub les fichiers du dashboard (dont le nouveau `intel.js`). Sur le dashboard, les pages **Recommandations**, **Concurrents** et **Veille** utilisent le même code équipe que les notes.
+
+### Lire les pages
+- **Recommandations** : le brief du jour (résumé, chiffres clés, alertes), les priorités classées par impact, la matrice impact et effort (commence par les « gains rapides »), les **signaux du moment** recalculés en direct sur la période choisie, les contenus de la semaine et l'historique des briefs.
+- **Concurrents** (onglet Instagram ou TikTok) : le benchmark (abonnés, évolution, rythme, vues, engagement, meilleur format), l'évolution des abonnés en base 100, la carte de positionnement (rythme × engagement), **ce qui marche chez eux** (publications classées par écart à leur niveau habituel) et les formats qui performent.
+- **Veille** : les mentions de POA et leur tonalité (un indice par mots-clés, à relire), la part de voix face aux concurrents, les sujets qui montent et le fil d'actualité filtrable.
+- Tout suit le filtre **Période**. Le rapport PDF propose les sections Recommandations, Concurrents et Veille.
+
+### Coûts et limites
+- **Apify** : environ 7 comptes Instagram par jour, et 7 comptes TikTok plus une recherche deux fois par semaine. D'après les tarifs affichés par Apify, cela tient dans le crédit gratuit de 5 $ par mois. Le suivi se fait dans la console Apify (Billing). Pour réduire : moins de comptes, ou `JOURS_TIKTOK: [1]` en haut de `poa-veille.gs`.
+- **Chiffres publics** : les concurrents n'ont que des chiffres visibles de tous (abonnés, vues, j'aime, commentaires, partages). L'engagement se calcule en interactions ÷ abonnés sur Instagram et en interactions ÷ vues sur TikTok, avec la même méthode pour POA.
+- **Agents** : ce sont deux tâches planifiées de Claude, sur ton compte. Elles s'exécutent dans le cloud, sans ordinateur allumé, et se gèrent dans tes tâches planifiées (pause, horaire, consignes). La clé `AGENT_KEY` n'ouvre que la lecture du digest et la publication d'un brief : elle ne donne accès ni aux notes ni au Sheet.
+
 ## Points d'attention (qualité des données)
 
 - **« Vues » Meta** : depuis 2025, Meta compte des vues (y compris répétées) à la place des impressions. Les historiques antérieurs saisis à la main avec une autre définition ne sont pas strictement comparables.
@@ -194,6 +239,11 @@ Le rapport s'ouvre sur une page de garde (période, date, état des sources), pu
 | `preparerAudience` | Une fois : crée l'onglet Audience pré-rempli (ne touche à rien s'il contient déjà des données) |
 | `tiktokLienAutorisation` | Rappelle l'URL de redirection TikTok et la marche à suivre |
 | `tiktokValiderCode` | Une fois, après l'autorisation TikTok : échange le code contre les jetons |
+| `configurerVeille` | Une fois : onglets de veille pré-remplis et déclencheurs (relançable sans doublon) |
+| `testerVeille` | Premier relevé complet (TikTok compris), résultats environ 5 minutes après |
+| `envoyerBriefDeTest` | T'envoie un brief d'exemple pour voir l'e-mail |
+| `lancerCollecteVeille` / `recupererCollecteVeille` | Tournent seuls chaque matin (le second se relance tant qu'Apify travaille) |
+| `verifierBriefDuJour` | Tourne seul vers 9 h : brief automatique si l'agent n'a rien publié |
 
 ## Dépannage
 
@@ -208,6 +258,10 @@ Le rapport s'ouvre sur une page de garde (période, date, état des sources), pu
 | Import TikTok « Ignoré » | Fichier au format Excel ou image | Réexporte en CSV, ou dépose le .zip |
 | Dashboard : « flux auto non branché » | URL Flux_auto absente de `config.js` | Partie 3 |
 | Chiffres pas à jour sur le dashboard | Cache Google du CSV publié | Attends 5 minutes, puis Actualiser |
+| Pages Concurrents, Veille : « Script à mettre à jour » | `Veille.gs` absent ou déploiement non mis à jour | Partie 5, étapes 2 et 8 |
+| `Concurrents_config` : « Introuvable » | Nom de compte inexact | Recopie l'identifiant exact du profil (sans @) |
+| Journal : « APIFY_TOKEN absent » | Propriété manquante | Partie 5, étape 3 |
+| E-mail « brief automatique » au lieu de l'agent | L'agent n'a pas publié (clé `AGENT_KEY` absente ou différente, déploiement pas à jour) | Vérifie la propriété et le déploiement, puis relance l'agent depuis tes tâches planifiées |
 
 ## Pour aller plus loin
 - **Campagnes Meta détaillées** : quand une campagne tourne, le script peut écrire une ligne par campagne et par jour dans un onglet dédié, que le dashboard lirait à la place des blocs saisis à la main.

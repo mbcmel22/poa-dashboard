@@ -257,7 +257,7 @@ async function onNotesClick(e) {
   const b = t.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act, c = NOTES.list.find(x => x.id === b.dataset.id);
   if (act === 'annuler') { NOTES.editing = null; rendrePanneau(); return; }
-  if (act === 'oublier') { ls.del('poa-cmt-key'); NOTES.list = []; rendreNotes(); rendrePanneau(); renderAll(); return; }
+  if (act === 'oublier') { ls.del('poa-cmt-key'); NOTES.list = []; if (typeof INTEL !== 'undefined') INTEL.data = null; rendreNotes(); rendrePanneau(); renderAll(); return; }
   if (act === 'voir' && c) { voirNote(c); return; }
   if (act === 'suppr' && c) {
     if (!confirm(`Supprimer cette note pour toute l’équipe ?\n\n« ${c.texte.slice(0, 120)} »`)) return;
@@ -277,7 +277,7 @@ async function onNotesSubmit(e) {
   if (f.id === 'lock-form') {
     ls.set('poa-cmt-key', d.key.trim()); ls.set('poa-cmt-auteur', d.auteur.trim());
     NOTES.error = null;
-    try { await apiNotes('GET'); toast('Commentaires activés sur cet appareil'); renderAll(); }
+    try { await apiNotes('GET'); toast('Code équipe enregistré sur cet appareil'); renderAll(); if (typeof chargerIntel === 'function') chargerIntel(); }
     catch (err) { NOTES.error = err.message === 'code' ? 'code' : 'reseau'; if (err.message === 'code') ls.del('poa-cmt-key'); }
     rendrePanneau(); return;
   }
@@ -293,14 +293,17 @@ async function onNotesSubmit(e) {
    EXPORT PDF : rapport mis en page, via l'impression du navigateur
    ============================================================ */
 function ouvrirExport() {
+  const intelPret = typeof INTEL !== 'undefined' && !!INTEL.data;
   const nets = NETS.map(n => `<label class="pdf-opt"><input type="checkbox" name="net" value="${n.key}" checked> ${n.label}</label>`).join('');
   $('pdf-body').innerHTML = `<form id="pdf-form" class="note-form">
     <p class="nf-aide">Période : <strong>${escapeHtml(periodLabel())}</strong>. Le rapport reprend exactement les filtres affichés.</p>
     <fieldset><legend>Contenu</legend>
       <label class="pdf-opt"><input type="checkbox" name="sec" value="vue" checked> Synthèse (vue d’ensemble, objectifs, tunnel)</label>
+      ${intelPret ? '<label class="pdf-opt"><input type="checkbox" name="sec" value="reco" checked> Recommandations (brief, priorités, contenus)</label>' : ''}
       <div class="pdf-sub"><span>Réseaux sociaux :</span> ${nets}</div>
       <label class="pdf-opt"><input type="checkbox" name="sec" value="landing" ${STATE.vue === 'mois' ? 'checked' : ''}> Landing page</label>
       <label class="pdf-opt"><input type="checkbox" name="sec" value="pub" checked> Publicité</label>
+      ${intelPret ? '<label class="pdf-opt"><input type="checkbox" name="sec" value="concurrents" checked> Concurrents (Instagram et TikTok)</label><label class="pdf-opt"><input type="checkbox" name="sec" value="veille"> Veille (marque et secteur)</label>' : ''}
     </fieldset>
     <fieldset><legend>Options</legend>
       <label class="pdf-opt"><input type="checkbox" name="notes" checked ${notesActives() && ls.get('poa-cmt-key') ? '' : 'disabled'}> Faits marquants et notes de la période</label>
@@ -328,10 +331,11 @@ function capturer(pageEl, { tables }) {
   clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
   clone.querySelectorAll('.net-tabs, button, .callout, [data-no-print]').forEach(el => el.remove());
   clone.querySelectorAll('p.note').forEach(el => { if (el.querySelector('code')) el.remove(); }); // aides de saisie, inutiles sur papier
+  clone.querySelectorAll('details').forEach(d => { d.open = true; });
   if (!tables) clone.querySelectorAll('.table-wrap').forEach(el => { const card = el.closest('.card'); if (card && !card.querySelector('.rp-keep')) card.remove(); });
   // Un rapport ne montre pas de blocs vides : on retire les cartes et tuiles sans donnée
   clone.querySelectorAll('.card').forEach(card => {
-    if (card.querySelector('.empty-state') && !card.querySelector('img, table, .aud-grid, .funnel, .obj, .best, .kv')) card.remove();
+    if (card.querySelector('.empty-state') && !card.querySelector('img, table, .aud-grid, .funnel, .obj, .best, .kv, .reco-card, .post-card, .feed-item, .signaux, .content-card, .mots')) card.remove();
   });
   clone.querySelectorAll('.tile').forEach(t => { if (t.querySelector('.tile-value.empty')) t.remove(); });
   clone.querySelectorAll('.grid').forEach(g => { if (!g.children.length) g.remove(); else if (g.children.length === 1) g.classList.add('rp-single'); });
@@ -364,7 +368,7 @@ async function genererRapport(opts) {
       const s = document.createElement('section'); s.className = 'rp-section';
       s.innerHTML = `<div class="rp-head"><h2>${escapeHtml(titre)}</h2><span>${escapeHtml(sous)}</span></div>`;
       if (notesHtml) s.insertAdjacentHTML('beforeend', notesHtml);
-      if (!node.querySelector('.tile, img, table, .aud-grid, .funnel') && !notesHtml) {
+      if (!node.querySelector('.tile, img, table, .aud-grid, .funnel, .reco-card, .post-card, .feed-item, .content-card') && !notesHtml) {
         // Section sans aucune donnée : une ligne suffit, pas de page entière
         const m = document.createElement('p'); m.className = 'rp-vide';
         m.textContent = `${titre} : aucune donnée sur la période.`;
@@ -383,14 +387,21 @@ async function genererRapport(opts) {
       const synth = toutes.slice().sort((a, b) => ordre[a.type] - ordre[b.type]);
       section('Synthèse', periode, node, notesPrintHtml(synth, 'Faits marquants et décisions'));
     }
+    if (opts.secs.includes('reco')) section('Recommandations', periode, await prendre('reco', rendreReco));
     for (const n of NETS.filter(x => opts.nets.includes(x.key))) {
       STATE.net = n.key;
       const node = await prendre('reseaux', renderReseaux);
       section(`Réseaux sociaux · ${n.label}`, periode, node, opts.notes ? notesPrintHtml(notesFor({ page: 'reseaux', net: n.key, range: r }).filter(c => c.page === 'reseaux'), `Notes ${n.label}`) : '');
     }
+    if (opts.secs.includes('concurrents')) {
+      const netAvantC = INTEL.net;
+      for (const c of RESEAUX_INTEL) { INTEL.net = c.key; section(`Concurrents · ${c.label}`, periode, await prendre('concurrents', rendreConcurrents)); }
+      INTEL.net = netAvantC;
+    }
+    if (opts.secs.includes('veille')) section('Veille', periode, await prendre('veille', rendreVeille));
     if (opts.secs.includes('landing')) section('Landing page', periode, await prendre('landing', renderLanding), opts.notes ? notesPrintHtml(toutes.filter(c => c.page === 'landing'), 'Notes landing page') : '');
     if (opts.secs.includes('pub')) section('Publicité', periode, await prendre('pub', renderPub), opts.notes ? notesPrintHtml(toutes.filter(c => c.page === 'pub'), 'Notes publicité') : '');
-    report.insertAdjacentHTML('beforeend', `<footer class="rp-footer">POA · rapport généré depuis le tableau de bord marketing (poa-dashboard.vercel.app). Chiffres issus de l’onglet POA (saisie) et des API Meta et TikTok (automatique).</footer>`);
+    report.insertAdjacentHTML('beforeend', `<footer class="rp-footer">POA · rapport généré depuis le tableau de bord marketing (poa-dashboard.vercel.app). Chiffres issus de l’onglet POA (saisie), des API Meta et TikTok (automatique) et, pour la veille, d’Apify et Google News.</footer>`);
   } finally {
     STATE.exporting = false;
     STATE.net = netAvant;
