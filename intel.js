@@ -72,7 +72,8 @@ function lireIntel(j) {
   const ordre = comptes.slice().sort((a, b) => (a.type === 'nous' ? -1 : b.type === 'nous' ? 1 : a.ordre - b.ordre));
   const couleurs = {};
   ordre.forEach((c, i) => { couleurs[c.nom] = INTEL_COULEURS[i] || INTEL_AUTRE; });
-  return { maj: j.maj, apify: j.apify, comptes, posts, releves, veille, briefs, couleurs };
+  return { maj: j.maj, apify: j.apify, comptes, posts, releves, veille, briefs, couleurs,
+    fiches: j.fiches || {}, alertes: (j.alertes || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1)), habitudes: j.habitudes || {} };
 }
 
 function infoCompte(net, handle) {
@@ -179,6 +180,7 @@ function rendreConcurrents() {
 
   el.innerHTML = `
     <div class="net-tabs" role="tablist" aria-label="Réseau">${netTabs(net, 'data-cnet')}</div>
+    ${alertesHtml(r)}
     ${sansReleve ? `<div class="card">${emptyState('Pas encore de relevé des comptes', D.apify ? 'Le premier relevé arrive demain matin, ou lance testerVeille dans Apps Script' : 'Ajoute APIFY_TOKEN dans les propriétés du script, puis lance testerVeille (guide, partie 5)')}</div>` : `
     <div class="tiles" id="tiles-conc"></div>
     <div class="card">
@@ -201,6 +203,10 @@ function rendreConcurrents() {
     <div class="card">
       <div class="card-head rp-keep"><h2>Ce qui marche chez eux</h2><span class="card-hint" id="hint-top"></span></div>
       <div class="post-grid" id="top-posts"></div>
+    </div>
+    <div class="card">
+      <div class="card-head rp-keep"><h2>Fiches concurrents</h2><span class="card-hint">Habitudes ${net} calculées sur 90 jours · ton et ligne éditoriale rédigés par l’agent veille</span></div>
+      <div class="fiche-grid">${fichesHtml(net)}</div>
     </div>
     <div class="card">
       <div class="card-head"><h2>Formats qui performent</h2><span class="card-hint">Engagement médian par format sur la période</span></div>
@@ -280,11 +286,11 @@ function rendreConcurrents() {
 
   // Ce qui marche chez eux
   const tops = topPosts(net, r);
-  $('hint-top').textContent = tops.length ? 'Classées par écart à leur niveau habituel (interactions ÷ médiane du compte)' : '';
+  $('hint-top').textContent = tops.length ? '« × 10 » = 10 fois plus d’interactions qu’une publication habituelle du même compte' : '';
   $('top-posts').innerHTML = tops.length ? tops.map(p => `<article class="post-card" style="--pc:${p.info.couleur}">
       <header><span class="sw-inline" style="background:${p.info.couleur}"></span><strong>${escapeHtml(p.info.nom)}</strong><span class="chip-mini">${escapeHtml(p.format)}</span><time>${dayLabel(p.d)}</time></header>
       <p class="post-text">${escapeHtml(court(p.texte, 180)) || '<em>Sans légende</em>'}</p>
-      <div class="post-stats"><span class="fois">× ${fr(p.fois, 1)}</span><span>${p.vues !== null ? `${fmt(p.vues)} vues · ` : ''}${fmt(p.inter)} interactions</span></div>
+      <div class="post-stats"><span class="fois" title="Interactions de cette publication ÷ interactions d’une publication habituelle de ${escapeHtml(p.info.nom)}">× ${fr(p.fois, 1)} <i>son niveau habituel</i></span><span>${p.vues !== null ? `${fmt(p.vues)} vues · ` : ''}${fmt(p.inter)} interactions</span></div>
       ${lienExt(p.lien, 'Voir la publication', 'post-link')}</article>`).join('')
     : emptyState('Aucune publication qui sort du lot sur la période', 'Élargis la période ou attends le prochain relevé');
 
@@ -298,6 +304,80 @@ function rendreConcurrents() {
     options: { ...commonOpts(v => `${fr(v, 1)} %`, false, true, { label: i => `${i.dataset.label} : ${i.raw === null ? 'pas de publication' : `${fr(i.raw, 2)} %`}` }), indexAxis: 'y',
       scales: { x: { beginAtZero: true, grid: { color: C.grid }, border: { display: false }, ticks: { color: C.ink3, callback: v => `${fr(v, 1)} %` } }, y: { grid: { display: false }, ticks: { color: C.ink } } } },
   }, fmts.length > 0, 'Pas de format à comparer', 'Aucune publication relevée sur la période');
+}
+
+
+/* ============================================================
+   FICHES CONCURRENTS ET ALERTES
+   ============================================================ */
+const TYPES_ALERTE = { virage_strategique: 'Virage stratégique', ligne_editoriale: 'Ligne éditoriale', bad_buzz: 'Bad buzz', produit: 'Produit', prix: 'Prix', financement: 'Financement', partenariat: 'Partenariat', autre: 'Autre' };
+const MENACES = { fort: ['Menace forte', 'bad'], moyen: ['Menace moyenne', 'warn'], faible: ['Menace faible', 'good'] };
+const TENDANCES = { stable: 'Stable', en_evolution: 'En évolution', en_rupture: 'En rupture' };
+const cap = t => String(t || '').charAt(0).toUpperCase() + String(t || '').slice(1);
+const sources = l => (l || []).filter(x => /^https?:\/\//.test(x.lien || '')).map(x => lienExt(x.lien, escapeHtml(x.titre || 'Source'))).join(' · ');
+
+function alerteHtml(a) {
+  return `<li class="alerte al-${a.niveau}">
+    <div class="al-meta"><time>${dayLabel(a.date)}</time><strong>${escapeHtml(a.nom)}</strong><span class="chip-mini">${escapeHtml(TYPES_ALERTE[a.type] || a.type)}</span>
+      ${statusHtml(a.niveau === 'haute' ? 'bad' : a.niveau === 'moyenne' ? 'warn' : 'none', a.niveau === 'haute' ? 'Importante' : a.niveau === 'moyenne' ? 'À suivre' : 'Info')}</div>
+    <p class="al-titre">${escapeHtml(a.titre)}</p>
+    ${a.detail ? `<p class="al-detail">${escapeHtml(a.detail)}</p>` : ''}
+    ${a.implication_poa ? `<p class="al-poa"><b>Pour POA</b>${escapeHtml(a.implication_poa)}</p>` : ''}
+    ${sources(a.sources) ? `<p class="al-src">${sources(a.sources)}</p>` : ''}</li>`;
+}
+function alertesHtml(r) {
+  const l = INTEL.data.alertes.filter(a => dansR(a.date, r));
+  if (!l.length) return '';
+  const ordre = { haute: 0, moyenne: 1, info: 2 };
+  return `<div class="card alertes-card"><div class="card-head rp-keep"><h2>Alertes concurrents</h2><span class="card-hint">Virages, changements de ligne et bad buzz détectés par l’agent veille · ${escapeHtml(periodLabel())}</span></div>
+    <ul class="alertes">${l.slice().sort((a, b) => ordre[a.niveau] - ordre[b.niveau] || (a.date < b.date ? 1 : -1)).slice(0, 8).map(alerteHtml).join('')}</ul></div>`;
+}
+
+function habitudesChips(h) {
+  if (!h) return [];
+  return [
+    h.publications_par_semaine !== null ? `${fr(h.publications_par_semaine, 1)} publication${h.publications_par_semaine >= 2 ? 's' : ''} / sem.` : null,
+    h.jours.length ? `Surtout le ${h.jours.slice(0, 2).map(j => j.valeur).join(' et le ')}` : null,
+    h.creneaux.length ? `${cap(h.creneaux[0].valeur.replace(/ \(.*\)/, ''))}${h.heure_mediane ? `, vers ${h.heure_mediane.replace(':', ' h ')}` : ''}` : null,
+    h.formats.length ? `${h.formats[0].valeur} ${h.formats[0].part_pct} %` : null,
+    h.langue.length ? `${cap(h.langue[0].valeur)} ${h.langue[0].part_pct} %` : null,
+  ].filter(Boolean);
+}
+
+function ficheHtml(c, net) {
+  const D = INTEL.data, F = D.fiches[c.nom], f = F && F.fiche, h = (D.habitudes[c.nom] || {})[net];
+  const handle = net === 'TikTok' ? c.tiktok : c.instagram, coul = D.couleurs[c.nom] || INTEL_AUTRE;
+  const m = f && MENACES[f.niveau_menace], chips = habitudesChips(h);
+  const derniere = D.alertes.find(a => a.nom === c.nom && a.niveau !== 'info');
+  const liste = (titre, l) => (l && l.length ? `<div><b>${titre}</b><ul>${l.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul></div>` : '');
+  return `<article class="fiche" style="--fc:${coul}">
+    <header class="fiche-head"><span class="sw-inline" style="background:${coul}"></span><h3>${escapeHtml(c.nom)}</h3>${handle ? `<span class="handle">@${escapeHtml(handle)}</span>` : ''}
+      <span class="fiche-badges">${m ? statusHtml(m[1], m[0]) : ''}${f && f.tendance ? `<span class="chip-mini tend-${f.tendance}">${TENDANCES[f.tendance]}</span>` : ''}</span></header>
+    ${f && f.positionnement ? `<p class="fiche-pos">${escapeHtml(f.positionnement)}</p>` : '<p class="fiche-pos muted">Le portrait éditorial (ton, ligne, piliers) arrive au prochain passage de l’agent veille, chaque matin vers 7 h 20.</p>'}
+    ${chips.length ? `<div class="fiche-habits">${chips.map(x => `<span>${escapeHtml(x)}</span>`).join('')}</div>` : `<p class="muted">Pas de publication ${net} relevée sur 90 jours.</p>`}
+    ${f ? `<dl class="fiche-dl">${f.ton ? `<dt>Ton</dt><dd>${escapeHtml(f.ton)}</dd>` : ''}${f.ligne_editoriale ? `<dt>Ligne éditoriale</dt><dd>${escapeHtml(f.ligne_editoriale)}</dd>` : ''}${f.cible ? `<dt>Cible</dt><dd>${escapeHtml(f.cible)}</dd>` : ''}</dl>` : ''}
+    ${f && f.piliers.length ? `<div class="piliers">${f.piliers.map(p => `<span class="pilier" title="${escapeHtml(p.exemple || '')}">${escapeHtml(p.nom)}${p.part ? ` <b>${escapeHtml(p.part)}</b>` : ''}</span>`).join('')}</div>` : ''}
+    ${f && f.a_retenir_pour_poa.length ? `<div class="fiche-poa"><b>À retenir pour POA</b><ul>${f.a_retenir_pour_poa.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul></div>` : ''}
+    ${(h && h.changements.length) || (f && f.evolution && f.tendance !== 'stable') || derniere ? `<div class="fiche-evol"><b>Ce qui bouge</b>
+      ${f && f.evolution && f.tendance !== 'stable' ? `<p>${escapeHtml(f.evolution)}</p>` : ''}${h ? h.changements.map(x => `<p class="chg">${escapeHtml(x)}</p>`).join('') : ''}
+      ${derniere ? `<p class="chg chg-alerte">${dayShort(derniere.date)} : ${escapeHtml(derniere.titre)}</p>` : ''}</div>` : ''}
+    <details class="fiche-plus"><summary>Fiche complète</summary>
+      ${f && f.habitudes ? `<p>${escapeHtml(f.habitudes)}</p>` : ''}
+      <div class="fiche-cols">${liste('Forces', f && f.forces)}${liste('Faiblesses', f && f.faiblesses)}</div>
+      ${liste('Formats signature', f && f.formats_signature)}
+      ${h ? `<div class="fiche-stats"><span>Légende médiane : <b>${h.mots_par_legende ?? '·'} mots</b></span><span>Avec émoji : <b>${h.part_avec_emoji_pct ?? '·'} %</b></span><span>Avec question : <b>${h.part_avec_question_pct ?? '·'} %</b></span>
+        <span>Engagement médian : <b>${h.engagement_median_pct === null ? '·' : `${fr(h.engagement_median_pct, 2)} %`}</b></span><span>Formats : <b>${h.formats.map(x => `${x.valeur} ${x.part_pct} %`).join(', ')}</b></span></div>` : ''}
+      ${h && h.hashtags.length ? `<p class="cc-tags">${h.hashtags.map(escapeHtml).join(' ')}</p>` : ''}
+      ${h && h.meilleure_publication ? `<p class="muted-block">Meilleure publication (90 j) : ${lienExt(h.meilleure_publication.lien, `« ${escapeHtml(court(h.meilleure_publication.texte, 90))} »`)}${h.meilleure_publication.fois_sa_mediane ? `, ${fr(h.meilleure_publication.fois_sa_mediane, 1)} fois son niveau habituel` : ''}</p>` : ''}
+      ${f && sources(f.sources) ? `<p class="muted-block">Sources : ${sources(f.sources)}</p>` : ''}
+      ${F ? `<p class="muted-block">Fiche mise à jour le ${dayLabel(F.maj)} par ${escapeHtml(F.auteur)}${F.precedente && F.precedente.ligne_editoriale && F.precedente.ligne_editoriale !== f.ligne_editoriale ? `. Ligne précédente : « ${escapeHtml(court(F.precedente.ligne_editoriale, 160))} »` : ''}</p>` : ''}
+    </details>
+  </article>`;
+}
+function fichesHtml(net) {
+  const D = INTEL.data, rang = c => { const f = (D.fiches[c.nom] || {}).fiche; return f ? { fort: 0, moyen: 1, faible: 2 }[f.niveau_menace] ?? 1 : 3; };
+  const l = D.comptes.filter(c => c.type !== 'nous' && c.actif).sort((a, b) => rang(a) - rang(b));
+  return l.length ? l.map(c => ficheHtml(c, net)).join('') : emptyState('Aucun concurrent actif', 'Onglet Concurrents_config du Google Sheet');
 }
 
 /* ============================================================
@@ -426,6 +506,8 @@ function signauxLive() {
       const t = topPosts(key, r, 1)[0];
       if (t && t.fois >= 3) out.push({ niv: 'info', txt: `${t.info.nom} (${key}) : publication à ${fr(t.fois, 1)} fois son niveau habituel, « ${court(t.texte, 70)} »`, lien: t.lien });
     });
+    INTEL.data.alertes.filter(a => a.niveau !== 'info' && dansR(a.date, r)).slice(0, 3)
+      .forEach(a => out.push({ niv: a.niveau === 'haute' ? 'bad' : 'warn', txt: `${a.nom} : ${a.titre}`, lien: (a.sources[0] || {}).lien }));
     const neg = INTEL.data.veille.filter(v => v.type === 'marque' && v.ton === 'négative' && dansR(v.d, r));
     if (neg.length) out.push({ niv: 'bad', txt: `${plur(neg.length, 'mention')} de POA au ton négatif : « ${court(neg[0].titre, 80)} »`, lien: neg[0].lien });
   }
