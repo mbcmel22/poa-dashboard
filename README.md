@@ -26,6 +26,7 @@ Tous les fichiers sont à la racine (plus simple pour l'envoi sur GitHub par le 
 
 ```
 index.html, styles.css, app.js     le dashboard
+notes.js                           notes partagées (commentaires) et export PDF
 config.js                          URLs Google Sheets et réglages (à remplir)
 demo-data.js                       copie de l'onglet POA pour le mode démo
 *.min.js                           Chart.js, plugin annotation, PapaParse

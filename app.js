@@ -20,7 +20,7 @@
 const CONFIG_BROKEN = typeof CONFIG === 'undefined';
 if (CONFIG_BROKEN) {
   window.CONFIG = {
-    SHEET_POA_CSV: null, SHEET_FLUX_AUTO_CSV: null, SHEET_AUDIENCE_CSV: null, SHEET_CONTENUS_CSV: null, ANNEE: 2026, PRIX_ABONNEMENT: 50, AUTO_REFRESH_MINUTES: 0,
+    SHEET_POA_CSV: null, SHEET_FLUX_AUTO_CSV: null, SHEET_AUDIENCE_CSV: null, SHEET_CONTENUS_CSV: null, COMMENTS_API: null, ANNEE: 2026, PRIX_ABONNEMENT: 50, AUTO_REFRESH_MINUTES: 0,
     OBJECTIFS: [
       { code: 'churn', label: 'Churn mensuel', cible: 0.06, sens: 'max', format: 'pct' },
       { code: 'nps', label: 'NPS', cible: 40, sens: 'min', format: 'num' },
@@ -662,7 +662,8 @@ function drawChart(id, config, hasData, emptyTitle, emptyHint) {
   if (!hasData) { wrap.innerHTML = emptyState(emptyTitle, emptyHint); return; }
   wrap.innerHTML = `<canvas id="c-${id}" role="img" aria-label="${escapeHtml(emptyTitle)}"></canvas>`;
   const visible = !!wrap.closest('.page.active');
-  config.options = { ...(config.options || {}), animation: visible ? { duration: 450 } : false };
+  config.options = { ...(config.options || {}), animation: visible && !STATE.exporting ? { duration: 450 } : false };
+  if (typeof decorerGraphique === 'function') decorerGraphique(id, config, wrap); // repères des notes, clic pour noter
   STATE.charts[id] = new Chart($(`c-${id}`), config);
 }
 
@@ -1284,6 +1285,7 @@ function renderAll() {
   const par = { mois: 'Par mois', semaine: 'Par semaine', jour: 'Par jour' }[STATE.gran];
   document.querySelectorAll('[data-gran-hint]').forEach(el => { el.textContent = par + el.dataset.granHint; });
   renderVue(); renderReseaux(); renderLanding(); renderPub(); renderSources();
+  if (typeof rendreNotes === 'function') rendreNotes();
 }
 
 function setStatus() {
@@ -1306,6 +1308,7 @@ async function refresh(manual = false) {
   btn.classList.add('loading'); btn.disabled = true;
   const err = await loadData();
   initPeriod(); renderAll(); setStatus();
+  if (typeof chargerCommentaires === 'function') chargerCommentaires(); // notes de l'équipe (sans bloquer l'affichage)
   $('last-load').textContent = `Données chargées le ${new Date().toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })}`;
   btn.classList.remove('loading'); btn.disabled = false;
   if (manual) toast(err ? 'Impossible de lire le Google Sheet, données de démo affichées' : (STATE.mode === 'live' ? 'Données mises à jour' : 'Mode démo rechargé'));

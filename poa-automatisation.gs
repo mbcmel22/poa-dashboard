@@ -46,6 +46,7 @@ const AUTO = {
   STORIES: '_stories',                      // onglet technique : stories vues passer
   CONTENUS: 'Contenus',                     // une ligne par publication (vues, j'aime...)
   AUDIENCE: 'Audience',                     // répartitions (genre, âge, sources, recherches)
+  COMMENTAIRES: 'Commentaires',             // notes et décisions saisies depuis le dashboard
   JOURS_RELECTURE: 3,                       // la veille + 2 jours de correction
   HISTORIQUE_DEPUIS: '2026-07-01',          // début du rattrapage (toujours un 1er du mois)
   DOSSIER_IMPORT_TIKTOK: 'POA - Import TikTok', // plan B : exports TikTok Studio déposés ici
@@ -480,13 +481,85 @@ function echangerCodeTikTok_(code, redirect) {
   return r;
 }
 
-/** Variante automatique si le script est publié en application Web et que son URL est déclarée chez TikTok. */
+/** Application Web : API des commentaires du dashboard (?action=...) ou retour d'autorisation TikTok (?code=...). */
 function doGet(e) {
+  if (e && e.parameter && e.parameter.action) return apiCommentaires_(e.parameter);
   const code = e && e.parameter && (e.parameter.code || e.parameter.auth_code);
   if (!code) return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">POA · automatisation : aucun code TikTok reçu.</p>');
   const r = echangerCodeTikTok_(code, ScriptApp.getService().getUrl());
   if (r.code !== 0) return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">Échec TikTok : ' + escapeHtml_(r.message) + '</p>');
   return HtmlService.createHtmlOutput('<p style="font-family:sans-serif">TikTok est relié au dashboard POA. Tu peux fermer cet onglet.</p>');
+}
+
+/* ==========================================================================
+   COMMENTAIRES DU DASHBOARD
+   Stockés dans l'onglet Commentaires. Le dashboard les lit et les écrit via
+   l'application Web de ce script, protégée par un code équipe (COMMENTS_KEY).
+   ========================================================================== */
+const COMMENTAIRES_ENTETE = ['Id', 'Créé le', 'Auteur', 'Type', 'Début', 'Fin', 'Page', 'Réseau', 'Indicateur', 'Texte', 'Statut'];
+const TYPES_COMMENTAIRE = ['evenement', 'analyse', 'decision', 'alerte'];
+
+/** À lancer une fois : crée l'onglet Commentaires et le code équipe. */
+function configurerCommentaires() {
+  const sh = feuille_(AUTO.COMMENTAIRES, COMMENTAIRES_ENTETE);
+  sh.getRange(1, 1, Math.max(sh.getMaxRows(), 2), 1).setNumberFormat('@');
+  const sp = PropertiesService.getScriptProperties();
+  let cle = sp.getProperty('COMMENTS_KEY');
+  if (!cle) {
+    const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    cle = 'POA-' + Array.from({ length: 6 }, () => a[Math.floor(Math.random() * a.length)]).join('');
+    sp.setProperty('COMMENTS_KEY', cle);
+  }
+  Logger.log('Onglet Commentaires prêt. Code équipe à donner aux personnes autorisées : ' + cle);
+  Logger.log('Ensuite : Déployer > Nouveau déploiement > Application Web (exécuter en tant que moi, accès : tout le monde), puis colle l\'URL /exec dans config.js (COMMENTS_API).');
+}
+
+function apiReponse_(obj) { return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON); }
+function cleValide_(k) { const ok = props_().COMMENTS_KEY; return !!ok && String(k || '').trim() === ok; }
+
+function lireCommentaires_() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(AUTO.COMMENTAIRES);
+  if (!sh) return [];
+  return sh.getDataRange().getValues().slice(1).filter(r => r[0]).map(r => ({
+    id: String(r[0]), cree: String(r[1]), auteur: String(r[2]), type: String(r[3]), debut: texteDate_(r[4]), fin: texteDate_(r[5]),
+    page: String(r[6] || 'toutes'), reseau: String(r[7] || 'tous'), indicateur: String(r[8] || ''), texte: String(r[9]).replace(/^'/, ''), statut: String(r[10] || ''),
+  }));
+}
+
+function apiCommentaires_(q) {
+  if (!cleValide_(q.key)) return apiReponse_({ ok: false, erreur: 'code' });
+  return apiReponse_({ ok: true, commentaires: lireCommentaires_() });
+}
+
+/** Écritures depuis le dashboard : corps JSON { key, action: 'ajouter' | 'supprimer' | 'statut', ... } */
+function doPost(e) {
+  let b;
+  try { b = JSON.parse(e.postData.contents); } catch (err) { return apiReponse_({ ok: false, erreur: 'format' }); }
+  if (!cleValide_(b.key)) return apiReponse_({ ok: false, erreur: 'code' });
+  const sh = feuille_(AUTO.COMMENTAIRES, COMMENTAIRES_ENTETE);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const propre = (v, max) => { let t = String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, max); return /^[=+\-@]/.test(t) ? "'" + t : t; };
+    const jourOk = d => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''));
+    if (b.action === 'ajouter') {
+      if (!TYPES_COMMENTAIRE.includes(b.type) || !jourOk(b.debut) || !jourOk(b.fin) || !String(b.texte || '').trim())
+        return apiReponse_({ ok: false, erreur: 'champs' });
+      const [debut, fin] = b.debut <= b.fin ? [b.debut, b.fin] : [b.fin, b.debut];
+      const id = Utilities.getUuid().slice(0, 8);
+      const ligne = [id, Utilities.formatDate(new Date(), AUTO.FUSEAU, "yyyy-MM-dd'T'HH:mm"), propre(b.auteur, 60) || 'Équipe', b.type, debut, fin,
+        propre(b.page || 'toutes', 20), propre(b.reseau || 'tous', 10), propre(b.indicateur, 60), propre(b.texte, 1500), b.type === 'decision' ? 'à faire' : ''];
+      const r = sh.getLastRow() + 1;
+      sh.getRange(r, 1, 1, ligne.length).setNumberFormat('@').setValues([ligne]);
+    } else if (b.action === 'supprimer' || b.action === 'statut') {
+      const ids = sh.getRange(1, 1, sh.getLastRow(), 1).getValues().map(r => String(r[0]));
+      const i = ids.indexOf(String(b.id));
+      if (i < 1) return apiReponse_({ ok: false, erreur: 'introuvable' });
+      if (b.action === 'supprimer') sh.deleteRow(i + 1);
+      else sh.getRange(i + 1, 11).setValue(b.statut === 'fait' ? 'fait' : 'à faire');
+    } else return apiReponse_({ ok: false, erreur: 'action' });
+  } finally { lock.releaseLock(); }
+  return apiReponse_({ ok: true, commentaires: lireCommentaires_() });
 }
 
 function enregistrerJetonsTikTok_(d) {

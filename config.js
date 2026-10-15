@@ -29,6 +29,10 @@ const CONFIG = {
   SHEET_AUDIENCE_CSV: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR4m7HEuHmqlPy2hNxaKrCbwQaP8_d9vUsBXJtcZaPUZxSreC3c92HMdV-ojXd7M_NHR06DwOSd5cKa/pub?gid=92194363&single=true&output=csv',
   SHEET_CONTENUS_CSV: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR4m7HEuHmqlPy2hNxaKrCbwQaP8_d9vUsBXJtcZaPUZxSreC3c92HMdV-ojXd7M_NHR06DwOSd5cKa/pub?gid=1323977159&single=true&output=csv',
 
+  // URL de l'application Web du script Apps Script (se termine par /exec) : notes et décisions partagées.
+  // Laisse null pour masquer les commentaires.
+  COMMENTS_API: 'https://script.google.com/macros/s/AKfycby5SYW0AF58P-_LhDaElBG1xg5I4tZoUEgiBQmjOtE8AVC5FmwvpDkrpyVCw1eAoxc/exec',
+
   // Année des colonnes Janvier à Décembre de l'onglet POA
   ANNEE: 2026,
 

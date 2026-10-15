@@ -139,6 +139,37 @@ Tu peux garder le plan B en secours : si l'API et un export donnent le même jou
 
 ---
 
+## Partie 4 : notes partagées et rapport PDF
+
+### Les notes (commentaires d'équipe)
+Une note explique un chiffre ou trace une décision. Elle porte :
+- un **type** : *Événement* (campagne, publication, actualité), *Analyse* (enseignement), *Décision / action* (avec un suivi « à faire / fait »), *Alerte données* (chiffre douteux, panne, changement de méthode) ;
+- une **période** : un jour, une semaine, un mois ou une plage libre ;
+- une **page** et un **réseau** (facultatifs) et un indicateur concerné.
+
+Une note apparaît dans **toute vue qui chevauche sa période** : une note du 12 octobre se voit en vue Jour (12 octobre), Semaine (du 12 au 18), Mois (octobre) et sur l'ensemble de l'année. Elle se lit à trois endroits :
+- **Vue d'ensemble > Faits marquants et décisions** : les notes de la période, alertes et décisions en premier ;
+- **dans les graphiques** : un repère numéroté sur la case concernée (le numéro renvoie à la liste) ;
+- **le bouton Notes** en haut : la liste complète, filtrable (période affichée ou toutes, page en cours ou toutes), avec « Voir » qui affiche la période de la note.
+
+Pour noter : bouton **Notes > Ajouter une note**, ou **clic sur une barre ou un point d'un graphique**, ce qui préremplit la date et le réseau.
+
+### Mise en route (10 minutes, une seule fois)
+1. Recolle `poa-automatisation.gs` dans Apps Script (Ctrl+A, Ctrl+V, Ctrl+S).
+2. Exécute **configurerCommentaires** : l'onglet `Commentaires` est créé et le journal affiche le **code équipe** (ex. `POA-7KQ2MX`). Donne-le uniquement aux personnes autorisées.
+3. **Déployer > Nouveau déploiement** > roue dentée > **Application Web**. Description : `API dashboard`. Exécuter en tant que : **Moi**. Qui a accès : **Tout le monde**. **Déployer**, autorise, puis copie l'URL qui finit par `/exec`.
+4. Colle-la dans `config.js` : `COMMENTS_API: 'https://script.google.com/macros/s/.../exec',` puis envoie `config.js` sur GitHub.
+5. Sur le dashboard : **Notes**, saisis le code équipe et ton prénom (une fois par appareil).
+
+Sécurité : sans le code équipe, l'API ne renvoie rien et n'accepte rien. Les textes commençant par `=`, `+`, `-` ou `@` sont neutralisés dans le Sheet (pas de formule exécutée). Pour changer le code : supprime la propriété `COMMENTS_KEY` dans Apps Script et relance `configurerCommentaires`.
+
+Si tu modifies le script plus tard : **Déployer > Gérer les déploiements > crayon > Version : Nouvelle version > Déployer**. L'URL ne change pas.
+
+### Le rapport PDF
+Bouton **Exporter PDF** : choisis les sections (synthèse, chaque réseau, landing page, publicité), les faits marquants et, si besoin, les tableaux détaillés. Le rapport reprend **exactement la période et la vue affichées** (un jour, une semaine, un mois, une plage). Dans la fenêtre d'impression, choisis **Enregistrer au format PDF**.
+
+Le rapport s'ouvre sur une page de garde (période, date, état des sources), puis la synthèse avec les faits marquants, puis une section par réseau avec ses propres notes. Les blocs sans donnée sont retirés automatiquement, et une section vide est résumée en une ligne.
+
 ## Points d'attention (qualité des données)
 
 - **« Vues » Meta** : depuis 2025, Meta compte des vues (y compris répétées) à la place des impressions. Les historiques antérieurs saisis à la main avec une autre définition ne sont pas strictement comparables.
@@ -159,6 +190,7 @@ Tu peux garder le plan B en secours : si l'API et un export donnent le même jou
 | `installerDeclencheurs` | Une fois (le relancer ne crée pas de doublon) |
 | `extraireTout` | Tourne seul chaque matin ; lançable à la main pour forcer une mise à jour |
 | `releverStories` | Tourne seul toutes les 6 h |
+| `configurerCommentaires` | Une fois : crée l'onglet Commentaires et le code équipe |
 | `preparerAudience` | Une fois : crée l'onglet Audience pré-rempli (ne touche à rien s'il contient déjà des données) |
 | `tiktokLienAutorisation` | Rappelle l'URL de redirection TikTok et la marche à suivre |
 | `tiktokValiderCode` | Une fois, après l'autorisation TikTok : échange le code contre les jetons |

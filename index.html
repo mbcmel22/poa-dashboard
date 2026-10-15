@@ -62,6 +62,14 @@
         <p id="page-sub">L'essentiel de la performance marketing de POA</p>
       </div>
       <div class="topbar-actions">
+        <button id="btn-notes" class="btn btn-light" type="button" hidden title="Notes et décisions de l'équipe sur la période">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>
+          <span>Notes</span><span class="badge" id="notes-count" hidden></span>
+        </button>
+        <button id="btn-pdf" class="btn btn-light" type="button" title="Exporter un rapport PDF de la période affichée">
+          <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9.5 15.5 12 18l2.5-2.5"/></svg>
+          <span>Exporter PDF</span>
+        </button>
         <button id="refresh" class="btn" type="button" title="Recharger les données du Google Sheet">
           <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></svg>
           <span>Actualiser</span>
@@ -85,6 +93,14 @@
       <!-- ============ PAGE : VUE D'ENSEMBLE ============ -->
       <section class="page" id="page-vue" data-title="Vue d'ensemble" data-sub="L'essentiel de la performance marketing de POA">
         <div class="tiles" id="tiles-vue"></div>
+
+        <div class="card faits-card">
+          <div class="card-head">
+            <h2>Faits marquants et décisions</h2>
+            <span class="card-hint" id="faits-hint"></span>
+          </div>
+          <div id="faits"></div>
+        </div>
 
         <div class="grid g-3-2">
           <div class="card">
@@ -162,7 +178,7 @@
         </div>
 
         <div class="card">
-          <div class="card-head"><h2>Publications</h2><span class="card-hint" id="hint-posts"></span></div>
+          <div class="card-head rp-keep"><h2>Publications</h2><span class="card-hint" id="hint-posts"></span></div>
           <div class="table-wrap" id="t-posts"></div>
         </div>
 
@@ -197,7 +213,7 @@
 
         <div class="card">
           <div class="card-head">
-            <h2>Campagnes Meta Ads</h2>
+            <h2 class="rp-keep">Campagnes Meta Ads</h2>
             <span class="card-hint" id="hint-tests"></span>
           </div>
           <div class="table-wrap" id="t-tests"></div>
@@ -254,6 +270,24 @@
   </div>
 </div>
 
+<div class="notes-overlay" id="notes-overlay" hidden></div>
+<aside class="notes-drawer" id="notes-drawer" aria-label="Notes et décisions">
+  <div class="nd-head">
+    <div><h2>Notes et décisions</h2><p id="notes-sub"></p></div>
+    <button type="button" class="icon-btn" id="notes-close" aria-label="Fermer"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+  <div class="nd-body" id="notes-body"></div>
+</aside>
+
+<div class="modal" id="pdf-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="pdf-title">
+    <h2 id="pdf-title">Exporter le rapport PDF</h2>
+    <div id="pdf-body"></div>
+  </div>
+</div>
+<div class="busy" id="busy" hidden><div class="busy-card">Préparation du rapport…</div></div>
+<div id="report" aria-hidden="true"></div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="papaparse.min.js"></script>
@@ -262,5 +296,6 @@
 <script src="config.js"></script>
 <script src="demo-data.js"></script>
 <script src="app.js"></script>
+<script src="notes.js"></script>
 </body>
 </html>
