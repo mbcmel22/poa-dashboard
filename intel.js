@@ -537,8 +537,10 @@ function recoCard(b, x, i) {
     ${x.kpi ? `<p class="reco-kpi">À suivre : ${escapeHtml(x.kpi)}</p>` : ''}
     ${x.pourquoi ? `<details class="reco-why"><summary>Pourquoi</summary><p>${escapeHtml(x.pourquoi)}</p></details>` : ''}
     <footer class="reco-foot">${st
-      ? `<span class="reco-st">${st.statut === 'adoptee' ? statusHtml('good', 'Adoptée') : statusHtml('none', 'Écartée')}<span>${escapeHtml(st.auteur)}, ${dayShort(st.le)}${st.statut === 'adoptee' ? ' · dans les décisions' : ''}</span></span>${peut ? '<button type="button" class="link-btn" data-act-reco="annuler">Annuler</button>' : ''}`
-      : peut ? '<button type="button" class="btn btn-sm" data-act-reco="adopter">Adopter</button><button type="button" class="btn btn-light btn-sm" data-act-reco="ecarter">Écarter</button><span class="reco-help">Adopter crée une décision « à faire » dans les notes</span>' : ''}</footer>
+      ? `<span class="reco-st">${st.statut === 'adoptee' ? statusHtml('good', 'Adoptée') : statusHtml('none', 'Écartée')}<span>${escapeHtml(st.auteur)}, ${dayShort(st.le)}${st.statut === 'adoptee' ? ' · dans les décisions' : ''}</span></span>
+        ${peut ? `<span class="reco-liens"><button type="button" class="link-btn" data-act-reco="modifier">${st.commentaire ? 'Modifier le commentaire' : 'Ajouter un commentaire'}</button><button type="button" class="link-btn" data-act-reco="annuler">Annuler</button></span>` : ''}
+        ${st.commentaire ? `<p class="reco-com"><b>Commentaire</b>${escapeHtml(st.commentaire)}</p>` : ''}`
+      : peut ? '<button type="button" class="btn btn-sm" data-act-reco="adopter">Adopter</button><button type="button" class="btn btn-light btn-sm" data-act-reco="ecarter">Écarter</button><span class="reco-help">Tu pourras ajouter un commentaire pour l’agent</span>' : ''}</footer>
   </article>`;
 }
 
@@ -631,23 +633,46 @@ async function postIntel(body) {
   return j;
 }
 
-async function actionReco(btn) {
-  const card = btn.closest('[data-reco]'), [date, type] = btn.closest('[data-brief]').dataset.brief.split('|');
+function contexteReco(el) {
+  const card = el.closest('[data-reco]'), [date, type] = el.closest('[data-brief]').dataset.brief.split('|');
   const brief = INTEL.data.briefs.find(b => b.date === date && b.type === type);
-  const reco = brief.contenu.recommandations.find(x => x.id === card.dataset.reco);
-  const act = btn.dataset.actReco, auteur = ls.get('poa-cmt-auteur') || 'Équipe';
-  card.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  return { card, date, type, brief, reco: brief.contenu.recommandations.find(x => x.id === card.dataset.reco) };
+}
+
+/* Adopter ou écarter ouvre d'abord un petit formulaire : commentaire facultatif, relu par les agents le lendemain */
+function ouvrirChoixReco(btn) {
+  const { card, brief, reco } = contexteReco(btn);
+  const st = (brief.statuts || {})[reco.id];
+  const choix = btn.dataset.actReco === 'modifier' ? st.statut : btn.dataset.actReco === 'adopter' ? 'adoptee' : 'ecartee';
+  const adopte = choix === 'adoptee';
+  card.querySelector('.reco-foot').innerHTML = `<form class="reco-form" data-choix="${choix}" data-edition="${btn.dataset.actReco === 'modifier' ? '1' : ''}">
+    <label for="com-${escapeHtml(reco.id)}">${adopte ? 'Pourquoi tu l’adoptes, à quelles conditions' : 'Pourquoi tu l’écartes'} <span class="nf-opt">(facultatif, lu par l’agent)</span></label>
+    <textarea id="com-${escapeHtml(reco.id)}" name="commentaire" rows="2" maxlength="500" placeholder="${adopte ? 'Ex. : oui, mais seulement sur TikTok et après la bêta' : 'Ex. : déjà testé en septembre, sans résultat ; pas de budget avant 2027'}">${escapeHtml((st && st.commentaire) || '')}</textarea>
+    <div class="reco-form-actions"><button type="button" class="btn btn-light btn-sm" data-act-reco="fermer">Annuler</button>
+      <button type="submit" class="btn btn-sm">${btn.dataset.actReco === 'modifier' ? 'Enregistrer le commentaire' : adopte ? 'Confirmer l’adoption' : 'Confirmer l’écart'}</button></div>
+    ${adopte && btn.dataset.actReco !== 'modifier' ? '<p class="reco-help">Une décision « à faire » sera ajoutée aux notes de l’équipe.</p>' : ''}
+  </form>`;
+  setTimeout(() => card.querySelector('textarea').focus(), 30);
+}
+
+async function actionReco(el, statut, commentaire = '', edition = false) {
+  const { card, date, type, brief, reco } = contexteReco(el);
+  const auteur = ls.get('poa-cmt-auteur') || 'Équipe';
+  card.querySelectorAll('button, textarea').forEach(b => { b.disabled = true; });
   try {
-    const j = await postIntel({ action: 'statutReco', date, type, id: reco.id, statut: act === 'adopter' ? 'adoptee' : act === 'ecarter' ? 'ecartee' : '', auteur });
+    const j = await postIntel({ action: 'statutReco', date, type, id: reco.id, statut, auteur, commentaire });
     brief.statuts = j.statuts;
-    if (act === 'adopter') {
+    if (statut === 'adoptee' && !edition) {
       const canal = CANAUX[reco.canal] || CANAUX.global, debut = aujourdhui();
       const hz = norm(reco.horizon || ''), fin = /aujourd/.test(hz) ? debut : /mois/.test(hz) ? addDays(debut, 29) : addDays(debut, 6);
       await apiNotes('POST', { action: 'ajouter', type: 'decision', debut, fin, page: canal[1], reseau: canal[2], indicateur: court(reco.kpi, 60),
-        texte: court(`${reco.titre}. ${reco.action}`, 1500), auteur });
+        texte: court(`${reco.titre}. ${reco.action}${commentaire ? ` (Commentaire : ${commentaire})` : ''}`, 1500), auteur });
       toast('Adoptée : ajoutée aux décisions de l’équipe');
       renderAll();
-    } else { toast(act === 'ecarter' ? 'Recommandation écartée : l’agent en tiendra compte' : 'Statut retiré'); rendreReco(); }
+    } else {
+      toast(edition ? 'Commentaire enregistré : l’agent le lira demain' : statut === 'ecartee' ? 'Recommandation écartée : l’agent en tiendra compte' : 'Statut retiré');
+      rendreReco();
+    }
   } catch (e) {
     toast(e.message === 'code' ? 'Code équipe refusé' : 'Enregistrement impossible, réessaie');
     rendreReco();
@@ -671,7 +696,14 @@ function onIntelClick(e) {
   const bs = t.closest('[data-base]'); if (bs) { INTEL.base100 = bs.dataset.base === 'true'; rendreConcurrents(); return; }
   const fd = t.closest('[data-feed]'); if (fd) { INTEL.feed = fd.dataset.feed; INTEL.feedMax = 15; rendreVeille(); return; }
   if (t.closest('[data-feed-plus]')) { INTEL.feedMax += 25; rendreVeille(); return; }
-  const ar = t.closest('[data-act-reco]'); if (ar) { actionReco(ar); return; }
+  const ar = t.closest('[data-act-reco]');
+  if (ar) {
+    const a = ar.dataset.actReco;
+    if (a === 'fermer') rendreReco();
+    else if (a === 'annuler') { if (confirm('Retirer ta réponse à cette recommandation ?')) actionReco(ar, ''); }
+    else ouvrirChoixReco(ar);
+    return;
+  }
   const cp = t.closest('[data-copier]'); if (cp) { copierContenu(+cp.dataset.copier, cp.closest('[data-contenus]') ? cp.closest('[data-contenus]').dataset.contenus : ''); return; }
   const gr = t.closest('[data-goto-reco]');
   if (gr) { e.preventDefault(); const c = document.querySelector(`#intel-reco [data-reco="${CSS.escape(gr.dataset.gotoReco)}"]`); if (c) { c.scrollIntoView({ behavior: 'smooth', block: 'center' }); c.classList.add('flash'); setTimeout(() => c.classList.remove('flash'), 1200); } return; }
@@ -685,4 +717,9 @@ function onIntelClick(e) {
 document.addEventListener('DOMContentLoaded', () => {
   const saved = ls.get('poa-cnet'); if (RESEAUX_INTEL.some(n => n.key === saved)) INTEL.net = saved;
   ['intel-reco', 'intel-concurrents', 'intel-veille'].forEach(id => $(id).addEventListener('click', onIntelClick));
+  $('intel-reco').addEventListener('submit', e => {
+    const f = e.target.closest('.reco-form'); if (!f) return;
+    e.preventDefault();
+    actionReco(f, f.dataset.choix, f.querySelector('textarea').value.trim(), f.dataset.edition === '1');
+  });
 });

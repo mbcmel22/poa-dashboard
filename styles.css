@@ -699,6 +699,17 @@ td.best-cell { font-weight: 700; color: var(--sage-dk); }
   .fiche-badges { margin-left: 0; width: 100%; }
 }
 
+
+/* Réponse à une recommandation avec commentaire */
+.reco-form { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.reco-form label { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.reco-form textarea { font: inherit; font-size: 13px; color: var(--ink); background: var(--cream); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; width: 100%; resize: vertical; min-height: 56px; }
+.reco-form textarea:focus-visible { outline: 2px solid var(--orange); outline-offset: 1px; }
+.reco-form-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.reco-liens { display: inline-flex; gap: 12px; margin-left: auto; }
+.reco-com { width: 100%; font-size: 13px; color: var(--ink); background: var(--cream); border-radius: 8px; padding: 7px 10px; line-height: 1.45; }
+.reco-com b { margin-right: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-3); }
+
 /* ============ RAPPORT PDF (impression) ============ */
 @media print {
   @page { size: A4; margin: 12mm 11mm 14mm; }
