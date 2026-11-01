@@ -855,10 +855,15 @@ function renderAudience(n) {
     const parDate = {};
     rows.filter(x => x.dim === dim).forEach(x => { (parDate[ymd(x.d)] ||= []).push(x); });
     const dates = Object.keys(parDate).sort();
-    const choix = [...dates].reverse().find(d => !fin || d <= fin) || dates[dates.length - 1];
+    /* Un relevé couvre les jours qui le précèdent (TikTok s'arrête à la veille) : celui du 1er novembre vaut pour fin octobre.
+       Si la période affichée est la plus récente, on prend toujours le dernier relevé. */
+    const courante = !fin || !STATE.lastData || fin >= STATE.lastData;
+    const choix = courante ? dates[dates.length - 1] : ([...dates].reverse().find(d => addDays(d, -1) <= fin) || dates[dates.length - 1]);
     const prec = dates[dates.indexOf(choix) - 1];
     if (!dernier || choix > dernier) dernier = choix;
-    const prev = Object.fromEntries((parDate[prec] || []).map(x => [norm(x.seg), x.v]));
+    // Écart affiché seulement entre deux relevés de même durée (7 jours contre 60 jours ne se comparent pas)
+    const memeDuree = prec && norm((parDate[prec][0] || {}).periode) === norm((parDate[choix][0] || {}).periode);
+    const prev = memeDuree ? Object.fromEntries(parDate[prec].map(x => [norm(x.seg), x.v])) : {};
     const segs = parDate[choix].slice().sort((a, b) => b.v - a.v);
     const max = Math.max(...segs.map(x => x.v), 0.0001);
     const periode = segs[0].periode ? ` · ${escapeHtml(segs[0].periode)}` : '';
