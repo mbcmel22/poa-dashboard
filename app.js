@@ -894,6 +894,7 @@ function renderSpectateurs(n, vk) {
 
 function renderPosts(n) {
   const all = STATE.contenus.filter(c => c.net === n.key && c.pub);
+  renderTop5(n, all);
   if (!all.length) {
     $('hint-posts').textContent = '';
     $('t-posts').innerHTML = emptyState(`Pas encore de statistiques par publication ${n.label}`,
@@ -904,7 +905,7 @@ function renderPosts(n) {
   const mois = STATE.vue === 'mois' ? new Set(periodMonths()) : null;
   const dans = c => (mois ? mois.has(ymd(c.pub).slice(0, 7)) : jours.has(ymd(c.pub)));
   let liste = all.filter(dans).sort((a, b) => (b.vues ?? -1) - (a.vues ?? -1));
-  let hint = `${liste.length} publication${liste.length > 1 ? 's' : ''} sur la période, classées par vues`;
+  let hint = `${liste.length} publication${liste.length > 1 ? 's' : ''} sur la période · tri par défaut : vues`;
   if (!liste.length) { liste = all.slice().sort((a, b) => b.pub - a.pub).slice(0, 5); hint = 'Aucune publication sur la période : voici les 5 dernières'; }
   const releve = all.map(c => c.releve).filter(Boolean).sort((a, b) => b - a)[0];
   const eng = c => (c.vues ? ratio(sum([c.likes, c.comm, c.part, c.enr]), c.vues) : null);
@@ -912,10 +913,35 @@ function renderPosts(n) {
   $('hint-posts').textContent = hint;
   $('t-posts').innerHTML = `<table class="compact"><thead><tr><th>Publiée le</th><th>Publication</th><th class="num">Vues</th><th class="num">J'aime</th>
       <th class="num">Comm.</th><th class="num">Partages</th><th class="num">Enreg.</th><th class="num">Engagement</th></tr></thead><tbody>
-    ${liste.slice(0, 15).map(c => `<tr><td>${dayLabel(ymd(c.pub))}</td>
+    ${liste.slice(0, 60).map(c => `<tr><td data-sort="${ymd(c.pub).replace(/-/g, '')}">${dayLabel(ymd(c.pub))}</td>
       <td class="post-title"><a href="${escapeHtml(c.lien)}" target="_blank" rel="noopener">${escapeHtml(short(c.titre))}</a></td>
-      ${cell(c.vues)}${cell(c.likes)}${cell(c.comm)}${cell(c.part)}${cell(c.enr)}<td class="num">${eng(c) === null ? '·' : fmt(eng(c), 'pct')}</td></tr>`).join('')}
-    </tbody></table><p class="note">Totaux cumulés depuis la publication${releve ? `, relevés le ${dayLabel(ymd(releve))}` : ''}. Engagement = (j'aime + commentaires + partages + enregistrements) ÷ vues.</p>`;
+      ${cell(c.vues)}${cell(c.likes)}${cell(c.comm)}${cell(c.part)}${cell(c.enr)}<td class="num" ${eng(c) === null ? '' : `data-sort="${eng(c)}"`}>${eng(c) === null ? '·' : fmt(eng(c), 'pct')}</td></tr>`).join('')}
+    </tbody></table><p class="note">Clique sur un en-tête de colonne pour trier. Totaux cumulés depuis la publication${releve ? `, relevés le ${dayLabel(ymd(releve))}` : ''}. Engagement = (j'aime + commentaires + partages + enregistrements) ÷ vues.</p>`;
+}
+
+/* Top 5 de la période par taux d'engagement (publications d'au moins MIN_VUES_ENGAGEMENT vues, sinon le taux ne veut rien dire) */
+function renderTop5(n, all) {
+  const box = $('top5-posts'); if (!box) return;
+  const jours = STATE.vue === 'mois' ? null : new Set(periodDays());
+  const mois = STATE.vue === 'mois' ? new Set(periodMonths()) : null;
+  const dans = c => (mois ? mois.has(ymd(c.pub).slice(0, 7)) : jours.has(ymd(c.pub)));
+  const inter = c => sum([c.likes, c.comm, c.part, c.enr]);
+  const eng = c => (c.vues ? ratio(inter(c), c.vues) : null);
+  const periode = all.filter(dans);
+  const top = periode.filter(c => c.vues >= MIN_VUES_ENGAGEMENT && eng(c) !== null).sort((a, b) => eng(b) - eng(a) || b.vues - a.vues).slice(0, 5);
+  const ecartees = periode.filter(c => c.vues !== null && c.vues < MIN_VUES_ENGAGEMENT).length;
+  $('hint-top5').textContent = top.length ? `${periodLabel()} · classées par taux d’engagement (au moins ${MIN_VUES_ENGAGEMENT} vues)${ecartees ? ` · ${ecartees} publication${ecartees > 1 ? 's' : ''} sous ${MIN_VUES_ENGAGEMENT} vues écartée${ecartees > 1 ? 's' : ''}` : ''}` : periodLabel();
+  if (!top.length) {
+    box.innerHTML = emptyState(`Aucune publication ${n.label} à classer sur la période`, periode.length ? `Les publications de la période ont moins de ${MIN_VUES_ENGAGEMENT} vues : le taux ne serait pas fiable` : 'Élargis la période (Mois ou Tout) pour voir le classement');
+    return;
+  }
+  const short = t => { const s2 = String(t || '').replace(/\s+/g, ' ').trim(); return s2.length > 110 ? s2.slice(0, 108) + '…' : s2 || '(sans titre)'; };
+  box.innerHTML = `<ol class="top5">${top.map((c, i) => `<li class="top5-item" style="--tc:${n.color}">
+      <span class="top5-rang">${i + 1}</span>
+      <div class="top5-eng"><strong>${fmt(eng(c), 'pct')}</strong><span>d’engagement</span></div>
+      <a class="top5-titre" href="${escapeHtml(c.lien)}" target="_blank" rel="noopener">${escapeHtml(short(c.titre))}</a>
+      <div class="top5-meta"><span>${dayLabel(ymd(c.pub))}</span><span>${fmt(c.vues)} vues</span><span>${fmt(inter(c))} interactions</span></div>
+    </li>`).join('')}</ol>`;
 }
 
 const cell = (v, f = 'int') => `<td class="num ${v === null ? 'na' : ''}">${v === null ? '·' : fmt(v, f)}</td>`;
@@ -1297,6 +1323,75 @@ function renderAll() {
   if (typeof rendreIntel === 'function') rendreIntel();
 }
 
+/* ============================================================
+   TRI DES TABLEAUX : clic sur un en-tête (décroissant, croissant, ordre d'origine)
+   Fonctionne pour tous les tableaux, y compris ceux redessinés à chaque filtre :
+   le tri choisi est mémorisé par tableau et réappliqué automatiquement.
+   ============================================================ */
+const TRIS = {};
+const MOIS_TRI = { 'janv.': 1, 'févr.': 2, mars: 3, 'avr.': 4, mai: 5, juin: 6, 'juil.': 7, 'août': 8, 'sept.': 9, 'oct.': 10, 'nov.': 11, 'déc.': 12 };
+function valeurTri(td) {
+  if (!td) return null;
+  if (td.dataset.sort !== undefined) { const n = Number(td.dataset.sort); return isNaN(n) ? td.dataset.sort.toLowerCase() : n; }
+  const t = td.textContent.replace(/[\s\u00a0\u202f]+/g, ' ').trim();
+  if (!t || /^(·|n\/a|jamais|-)$/i.test(t)) return null;
+  let m = t.match(/^(?:sem\. du )?(\d{1,2}) (\S+) (\d{4})/);
+  if (m && MOIS_TRI[m[2]]) return +m[3] * 10000 + MOIS_TRI[m[2]] * 100 + +m[1];
+  m = t.match(/^(\S+) (\d{4})$/);
+  if (m && MOIS_TRI[m[1]]) return +m[2] * 10000 + MOIS_TRI[m[1]] * 100;
+  m = t.replace(/(\d) (?=\d{3}\b)/g, '$1').match(/^[<>]?\s?([+-]?\d+(?:,\d+)?)/);
+  if (m) return parseFloat(m[1].replace(',', '.')) * (/^</.test(t) ? 0.999 : 1);
+  return t.replace(/^[^\p{L}\p{N}]+/u, '').toLowerCase(); // les émojis de tête ne comptent pas dans l'ordre alphabétique
+}
+function cleTableau(table) {
+  const h = table.closest('[id]');
+  return (h ? h.id : 'table') + '|' + [...table.tHead.rows[0].cells].map(c => c.textContent.trim()).join('·');
+}
+function appliquerTri(table) {
+  const corps = table.tBodies[0]; if (!corps || !table.tHead) return;
+  const lignes = [...corps.rows];
+  lignes.forEach((r, i) => { if (r.dataset.ordre === undefined) r.dataset.ordre = i; });
+  const t = TRIS[cleTableau(table)];
+  [...table.tHead.rows[0].cells].forEach((th, i) => {
+    th.classList.add('triable'); th.tabIndex = 0;
+    th.setAttribute('aria-sort', t && t.col === i ? (t.dir > 0 ? 'ascending' : 'descending') : 'none');
+    th.title = 'Trier par cette colonne';
+  });
+  const tri = !t ? (a, b) => a.dataset.ordre - b.dataset.ordre : (a, b) => {
+    const va = valeurTri(a.cells[t.col]), vb = valeurTri(b.cells[t.col]);
+    if (va === null && vb === null) return a.dataset.ordre - b.dataset.ordre;
+    if (va === null) return 1;
+    if (vb === null) return -1; // les cases vides restent en bas, dans les deux sens
+    const c = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'fr', { numeric: true });
+    return c * t.dir || a.dataset.ordre - b.dataset.ordre;
+  };
+  lignes.sort(tri).forEach(r => corps.appendChild(r));
+  table.dataset.triee = '1';
+}
+function onTriClick(e) {
+  const th = e.target.closest('th.triable'); if (!th || (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ')) return;
+  if (e.type === 'keydown') e.preventDefault();
+  const table = th.closest('table'), col = [...th.parentNode.cells].indexOf(th), cle = cleTableau(table), t = TRIS[cle];
+  const lignes = [...table.tBodies[0].rows];
+  const texte = th.classList.contains('num') ? false : lignes.some(r => typeof valeurTri(r.cells[col]) === 'string');
+  const premier = texte ? 1 : -1; // nombres et dates : du plus grand au plus petit d'abord
+  if (!t || t.col !== col) TRIS[cle] = { col, dir: premier };
+  else if (t.dir === premier) t.dir = -premier;
+  else delete TRIS[cle];
+  appliquerTri(table);
+}
+function initTris() {
+  const zone = document.querySelector('.content'); if (!zone) return;
+  zone.addEventListener('click', onTriClick);
+  zone.addEventListener('keydown', onTriClick);
+  let attente = null;
+  new MutationObserver(() => {
+    if (attente) return;
+    attente = requestAnimationFrame(() => { attente = null; zone.querySelectorAll('table:not([data-triee])').forEach(appliquerTri); });
+  }).observe(zone, { childList: true, subtree: true });
+  zone.querySelectorAll('table').forEach(appliquerTri);
+}
+
 function setStatus() {
   const el = $('source-status');
   const flux = CONFIG.SHEET_FLUX_AUTO_CSV ? (STATE.fluxError ? 'flux auto en erreur' : 'flux auto actif') : 'flux auto non branché';
@@ -1326,6 +1421,7 @@ async function refresh(manual = false) {
 
 async function init() {
   setupChartDefaults();
+  initTris();
   $('period-chips').addEventListener('click', onChip);
   $('gran').addEventListener('click', onGran);
   $('cal-btn').addEventListener('click', e => { e.stopPropagation(); if (CAL.mode) closeCal(); else openCal(); });

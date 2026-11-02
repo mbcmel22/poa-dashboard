@@ -710,6 +710,31 @@ td.best-cell { font-weight: 700; color: var(--sage-dk); }
 .reco-com { width: 100%; font-size: 13px; color: var(--ink); background: var(--cream); border-radius: 8px; padding: 7px 10px; line-height: 1.45; }
 .reco-com b { margin-right: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-3); }
 
+
+/* Tri des tableaux */
+th.triable { cursor: pointer; user-select: none; position: relative; padding-right: 22px; }
+th.num.triable { padding-right: 22px; }
+th.triable:hover { color: var(--ink); background: #F7EFE2; }
+th.triable:focus-visible { outline: 2px solid var(--orange); outline-offset: -2px; }
+th.triable::after { content: '↕'; position: absolute; right: 7px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--ink-3); opacity: .45; }
+th.triable[aria-sort="ascending"]::after { content: '↑'; opacity: 1; color: var(--sage-dk); }
+th.triable[aria-sort="descending"]::after { content: '↓'; opacity: 1; color: var(--sage-dk); }
+th.triable[aria-sort="ascending"], th.triable[aria-sort="descending"] { color: var(--sage-ink); }
+
+/* Top 5 publications */
+.top5 { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.top5-item { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; border: 1px solid var(--line); border-top: 3px solid var(--tc); border-radius: 12px; padding: 12px 14px; background: #fff; break-inside: avoid; }
+.top5-rang { position: absolute; top: 10px; right: 12px; width: 24px; height: 24px; border-radius: 50%; background: var(--sage-ink); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.top5-item:first-child .top5-rang { background: var(--terracotta); }
+.top5-eng strong { display: block; font-size: 24px; font-weight: 700; letter-spacing: -.5px; line-height: 1.1; color: var(--ink); }
+.top5-eng span { font-size: 11.5px; color: var(--ink-3); }
+.top5-titre { font-size: 13px; line-height: 1.4; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
+.top5-titre:hover { border-color: var(--sage); }
+.top5-meta { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 11.5px; color: var(--ink-3); }
+@media (max-width: 1180px) { .top5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .top5 { grid-template-columns: minmax(0, 1fr); } .top5-item { padding: 10px 12px; } .top5-eng strong { font-size: 20px; } }
+@media print { #report th.triable::after { display: none; } #report .top5 { grid-template-columns: repeat(5, 1fr); gap: 2mm; } }
+
 /* ============ RAPPORT PDF (impression) ============ */
 @media print {
   @page { size: A4; margin: 12mm 11mm 14mm; }
