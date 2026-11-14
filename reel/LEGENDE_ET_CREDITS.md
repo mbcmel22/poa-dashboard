@@ -1,6 +1,6 @@
-# Réel POA Dashboard, version 2 (1 min 42, 1080×1920, 30 i/s)
+# Réel POA Dashboard, version 2 (1 min 44, 1080×1920, 30 i/s)
 
-Style repris du réel CTRL BUDGET : polices Bricolage Grotesque (titres) et Inter (texte), étiquette en pastille au-dessus de chaque titre, 2e ligne en couleur, téléphone qui fait défiler le vrai dashboard.
+Voix off, musique et bruitages identiques à la V1 (même prise, même intonation). Style repris du réel CTRL BUDGET : polices Bricolage Grotesque (titres) et Inter (texte), étiquette en pastille au-dessus de chaque titre, 2e ligne en couleur, téléphone qui fait défiler le vrai dashboard.
 
 ## Légende à coller (Instagram / TikTok)
 
