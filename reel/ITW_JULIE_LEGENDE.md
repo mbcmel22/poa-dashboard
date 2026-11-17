@@ -13,6 +13,7 @@ On a posé 3 questions à Julie 🏃‍♀️ 8 h de sport par semaine, et la nu
 Et n'oublie pas : c'est pas le poids qui compte, c'est d'avoir POA dans ta vie 🧡
 
 Et toi, tu fais gaffe à ce que tu manges ? Dis-le en commentaire 👇
+Abonne-toi pour ne rien rater de la sortie de l'appli 🧡
 
 #POA #nutrition #nutritionsaine #healthyfood #sport #interview #mangersain #alimentationsaine
 
