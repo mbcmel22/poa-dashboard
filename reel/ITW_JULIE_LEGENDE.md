@@ -1,4 +1,4 @@
-# Réel « L'interview POA » avec Julie (1 min 48, 1080×1920, 30 i/s, image étalonnée et halos de couleur POA)
+# Réel « L'interview POA » avec Julie (1 min 48, 1080×1920, 30 i/s, couleur naturelle légèrement ravivée)
 
 Format question-réponse : fiche de profil, puis 3 questions, puis « le mot de la fin ». Sous-titres mot à mot (lyrics), stickers, logos POA.
 
