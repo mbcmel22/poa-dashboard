@@ -5,7 +5,7 @@ Charte POA (posts Burger et Gnocchis), rythme lent, musique guitare douce, banan
 ## Description à coller
 
 « Manger sain et se faire plaisir, ça coûte cher ! » Mais nooon 😋
-Black Friday : la vraie bonne affaire est au rayon frais 🛒
+Black Friday : la vraie bonne affaire est dans ton caddie 🛒
 3 produits à moins de 2 €, 3 recettes plaisir 👇
 
 🥞 PANCAKES AVOINE-BANANE (2 pers. · 10 min)
