@@ -31,7 +31,9 @@ Black Friday : la vraie bonne affaire est au rayon frais 🛒
 • Ajoute un peu de jus des pois chiches jusqu'à la texture voulue (1 c. à soupe de tahin si tu en as)
 • À tremper avec des bâtonnets de carotte, de concombre ou du pain pita
 
-💰 ~4,65 € le panier plaisir
+💰 ~4,65 € pour les 3 produits stars (flocons, bananes, pois chiches)
+⚠️ Ce prix ne comprend que ces 3 produits : pour les recettes, ajoute les autres ingrédients (œufs, lait, levure, citron, huile d'olive, épices…). Bonne nouvelle : tu en as sûrement déjà une bonne partie dans tes placards 😉
+
 📌 Enregistre pour tes prochaines courses et abonne-toi pour plus d'astuces petit budget 🧡
 
 Prix moyens relevés en ligne (2026), variables selon le magasin et la région.
